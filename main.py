@@ -1,18 +1,14 @@
 from os import scandir
 import math
 import pickle
+import time
 
 
-def statistics(packets, label):
-
-    # PRIMO STEP
-    # Elaboriamo una serie di dati fondamentali, tra cui le sezioni
-
-    mtypes = []
+def init(packets):
     sections = []
+    mtypes = []
     join_requests = []
 
-    # find the sections
     current_section = []
     for p in packets:
         if p.mtype not in mtypes:
@@ -25,6 +21,95 @@ def statistics(packets, label):
             current_section.append(p)
     sections.append(current_section)
 
+    return sections, mtypes, join_requests
+
+
+def init_pattern(patterns, elem):
+    patterns[elem.dev_addr] = { 
+        "timestamps" : [],
+        "interarrivals": [],
+        "mean" : 0,
+        "reliability" : 0
+    }
+
+
+def add_timestamp(patterns, elem):
+    patterns[elem.dev_addr]["timestamps"].append(math.trunc(elem.t))
+
+
+def get_mean(patterns, elem):
+    return patterns[elem]["mean"]
+
+
+def get_means(patterns):
+    means = {}
+    for elem in patterns:
+        means[elem] = patterns[elem]["mean"]
+    return means        
+
+
+def update_means(patterns):            
+    for dev_addr in patterns:
+        interarrivals = patterns[dev_addr]["interarrivals"]
+        if len(interarrivals) > 1:
+            patterns[dev_addr]["mean"] = math.trunc(sum(interarrivals) / len(interarrivals))
+        else:
+            patterns[dev_addr]["mean"] = 0
+
+
+def update_realiabilities(patterns):            
+    for dev_addr in patterns:
+        timestamps = patterns[dev_addr]["timestamps"]
+        patterns[dev_addr]["reliability"] = len(timestamps)
+
+
+def update_interarrivals(patterns):
+    for dev_addr in patterns:        
+        timestamps = patterns[dev_addr]["timestamps"]
+
+        if len(timestamps) > 1:
+            interarrivals = []
+            for i in range(1, len(timestamps)):
+                x = timestamps[i] - timestamps[i-1]
+                interarrivals.append(x)
+            patterns[dev_addr]["interarrivals"] = interarrivals
+
+
+def calculate_reliability_score(patterns):
+    realibilities = {
+        "Low" : 0,
+        "Medium" : 0,
+        "High" : 0
+    }
+    realiability_score = 0
+    for dev_addr in patterns:
+        reliability = patterns[dev_addr]["reliability"]
+
+        if reliability <= 2:
+            realibilities["Low"] += 1
+        elif reliability > 2 and reliability <= 10:
+            realibilities["Medium"] += 1
+        else:
+            realibilities["High"] += 1 
+
+        realiability_score = (0.2 * realibilities["Low"] + \
+                                0.4 * realibilities["Medium"] + \
+                                0.4 * realibilities["High"] ) // len(realibilities)
+    return realiability_score
+
+
+def update_patterns(patterns):
+    update_interarrivals(patterns)
+    update_means(patterns)
+    update_realiabilities(patterns)
+
+
+def statistics(packets, label):
+
+    # PRIMO STEP
+    # Elaboriamo una serie di dati fondamentali
+    sections, mtypes, join_requests = init(packets)
+
     # SECONDO STEP
     # accendere il nostro IDS e lasciarlo così non è sufficiente.
     # abbiamo bisogno di una buona base da cui partire:
@@ -32,78 +117,29 @@ def statistics(packets, label):
 
     patterns = {}
     index = 0
-    realiability_score = 0
-    realiability_threshold = 200
-    realibilities = {
-        "Low" : 0,
-        "Medium" : 0,
-        "High" : 0
-    }
+    realiability_score = 1
+    realiability_threshold = 0
     
     while (realiability_score < realiability_threshold):
         
         current_section = sections[index]        
-        current_devaddrs = set([ elem.dev_addr + "" for elem in current_section ])
-        
-        #devaddrs.append(current_devaddrs)
-        new_devices = 0
-
-        for elem in current_devaddrs:
-            
-            if elem not in patterns:
-                new_devices += 1
-
-            patterns[elem] = { 
-                "timestamps" : [],
-                "interarrivals": [],
-                "mean" : 0,
-                "reliability" : 0
-            }
 
         for elem in current_section:
-            patterns[elem.dev_addr]["timestamps"].append(math.trunc(elem.t))
+            if elem.dev_addr not in patterns:
+                init_pattern(patterns, elem)
+            add_timestamp(patterns, elem)
 
-        for dev_addr in patterns:
-            timestamps = patterns[dev_addr]["timestamps"]
+        update_patterns(patterns)    
 
-            if len(timestamps) > 1:
-                inter_arrivals = []
-                for i in range(1, len(timestamps)):
-                    x = timestamps[i] - timestamps[i-1]
-                    inter_arrivals.append(x)
+        realiability_score = calculate_reliability_score(patterns)
 
-                patterns[dev_addr]["interarrvial"] = inter_arrivals
-        
-        for dev_addr in patterns:
-            timestamps = patterns[dev_addr]["timestamps"]
-            patterns[dev_addr]["mean"] = math.trunc(sum(timestamps) / len(timestamps))
-            patterns[dev_addr]["reliability"] = len(timestamps)
-
-        for dev_addr in patterns:
-            reliability = patterns[dev_addr]["reliability"]
-
-            if reliability <= 2:
-                realibilities["Low"] += 1
-            elif reliability > 2 and reliability <= 10:
-                realibilities["Medium"] += 1
-            else:
-                realibilities["High"] += 1 
-    
-        realiability_score = (0.2 * realibilities["Low"] + \
-                              0.4 * realibilities["Medium"] + \
-                              0.4 * realibilities["High"] ) // len(realibilities)
-        
         index += 1   
-    
+
     print()
     print(str(index + 1) + " sections analyzed")
     print(">> Total Dev Addr: " + str(len(patterns)), )
-    #print("\r>> New devices: " + str(new_devices))
-    for key in realibilities:
-        print(">> Num. of DevAddr with " + key + " score: " + str(realibilities[key]),  )
     print(">> Reliability score: ", realiability_score)
     print()
-
 
     # final data
     num_of_packets = len(packets)
@@ -123,7 +159,6 @@ def statistics(packets, label):
     print("Num. of Join Requests: " + str(num_of_joins))
     print("Num. of sections: " + str(num_of_sections))
     print("mtypes: ", mtypes)
-    
     print()
     print(30 * "=" + "\n\n")
 
@@ -134,23 +169,53 @@ def statistics(packets, label):
     # se potenzialmente sono provenienti da nuovi o da vecchi devices.
 
     for section in sections[index:]:
+        new_devaddrs = {}
+        analyzed = []
+        current_devaddr = set([elem.dev_addr for elem in section]) 
 
-        new_devaddrs = 0
-        current_devaddrs = set([ elem.dev_addr + "" for elem in section ])
+        for elem in section:
+            devaddr = elem.dev_addr
+            if devaddr not in patterns:
+                # C'è un nuovo DevAddr, ora dobbiamo capire se è di un nuovo device
+                new_devaddrs[devaddr] = 1
+                init_pattern(patterns, elem)
+                add_timestamp(patterns, elem)
+                update_patterns(patterns)
+                #print(patterns)
+                #time.sleep(3)
+            else:
+                # già inserito nel pattern
+                if devaddr in new_devaddrs:
+                    # così abbiamo la conferma che è un Dev Addr che esiste solo in questa
+                    # sezione. Ma ora abbiamo almeno due pacchetti -> inter arrival
+                    add_timestamp(patterns, elem)
+                    update_patterns(patterns)
+                    new_devaddrs[devaddr] += 1
+                    
+                    if devaddr not in analyzed:  
+                        all_means = get_means(patterns)
+                        devaddr_mean = get_mean(patterns, devaddr)
 
-        for elem in current_devaddrs:
-            if elem not in patterns:
-                print("New Dev Addr found!")
-                new_devaddrs += 1
+                        for elem in all_means:
+                            mean = all_means[elem]
+                            error = 0
+                            if mean > 0:
+                                if devaddr != elem and elem not in current_devaddr:
+                                    if devaddr_mean >= mean - error and devaddr_mean <= mean + error:
+                                        print(devaddr, elem)
+                                        print(devaddr_mean, mean)
+                                        print()
+                                        #time.sleep(3)
+                        analyzed.append(devaddr)
 
 def main():
 
     # loading the datasets
     synth_packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
-    torrecanavese_packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
+    #torrecanavese_packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
 
     # printing some statistics
-    #statistics(synth_packets, "Synthetic dataset")
+    statistics(synth_packets, "Synthetic dataset")
     #statistics(torrecanavese_packets, "Real dataset")
 
 
