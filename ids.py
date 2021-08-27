@@ -1,5 +1,5 @@
 import math
-from typing import Pattern
+import time
 
 # quality_score(n) = (n / (n + 10))
 
@@ -12,10 +12,12 @@ class IDS:
     unconfirmed = {}
 
     current_section = 0
+    current_section_devaddr = set()
 
     num_of_packets = 0
     last_section_packets = 0
     current_section_packets = 0
+    last_timestamp = 0
 
 
     def __init__(self, label):
@@ -30,9 +32,12 @@ class IDS:
             self.current_section += 1
             self.last_section_packets = self.current_section_packets
             self.current_section_packets = 0
-            self.current_section_devaddr = []
+            self.current_section_devaddr = set()
+
         else:
             self.current_section_packets += 1
+            self.current_section_devaddr.add(p.dev_addr)
+            self.last_timestamp = p.t
         
         return p.mtype
 
@@ -43,101 +48,83 @@ class IDS:
         if devaddr not in self.patterns:
 
             if devaddr not in self.unconfirmed:
+                # inseriamo il devaddr nella lista sospetta
                 self.__init_unconfirmed(p)
 
             else:
+                # aggiorniamo i dati del device nella lista sospetta
                 self.__update_unconfirmed(p)
+
+                # se questo device è apparso più di tot. volte allora lo possiamo analizzare     
+                if self.unconfirmed[devaddr]["count"] >= 65:
                     
-                if self.unconfirmed[devaddr]["count"] >= 50:
-                    unconf_m = self.unconfirmed[devaddr]["interarrival"]
-                    unconf_S = self.unconfirmed[devaddr]["variance"]
-                    
-                    error = 0.2
                     duplicate = False
                     
-                    to_analyze = self.patterns.copy()
+                    unconf_m = self.unconfirmed[devaddr]["interarrival"]
+                    unconf_S = math.sqrt(self.unconfirmed[devaddr]["variance"])
+                    unconf_c = self.unconfirmed[devaddr]["count"]
 
-                    for elem in to_analyze:
+                    to_analyze = self.patterns.copy()
+                    l = set(to_analyze.keys())
+                    final_list = l - self.current_section_devaddr
+                                       
+                    for elem in final_list:
+                        
                         m = to_analyze[elem]["interarrival"]
                         S = to_analyze[elem]["variance"]
+                        count = to_analyze[elem]["count"]
+
+                        #if elem == "166_6" and devaddr == "166_7":
+                        #    print(self.__verify_duplicate(m, unconf_m, S, unconf_S, count))
+                        #    exit()
                         
-                        if unconf_m >= m - error and unconf_m <= m + error:
-                            duplicate = True
+                        duplicate = self.__verify_duplicate(m, unconf_m, S, unconf_S, count, unconf_c)
 
-                            elem_var = self.patterns[elem]["variance"]
-                            devaddr_var = self.unconfirmed[devaddr]["variance"]
-
-                            if devaddr.split("_")[0] != elem.split("_")[0]:
-                                print("[ERROR] " + devaddr + " and " + elem + \
-                                    " are different! mean1: " + \
-                                        str(unconf_m) + " mean2: " + str(m) + \
-                                            " var1: " + str(devaddr_var) + " var2: " + str(elem_var))
-
-                            
-                            count1 = self.patterns[elem]["count"]
-                            mean1 = self.patterns[elem]["interarrival"]
-                            M2_1 = self.patterns[elem]["M2"]
-                            
-                            count2 = self.unconfirmed[devaddr]["count"]
-                            mean2 = self.unconfirmed[devaddr]["interarrival"]
-                            M2_2 = self.unconfirmed[devaddr]["M2"]
-
-                            delta = mean2 - mean1
-
-                            new_count = count1 + count2
-                            delta = mean2 - mean1
-
-                            new_mean = mean1 + delta * (count2/new_count)
-                            new_M2 = M2_1 + M2_2 + (delta ** 2) * (count1 * count2/new_count)
-                            new_S = new_M2 / (new_count - 1)
-
-                            self.patterns[devaddr] = {
-                                "count": new_count,
-                                "timestamp" : math.trunc(p.t),
-                                "interarrival": new_mean,
-                                "M2": new_M2,
-                                "variance": new_S
-                            }
-
-                            '''
-                            print("Change devaddr:")
-                            print(elem + " old mean: " + str(self.patterns[elem]["interarrival"]))
-                            print(elem + " old M2: " + str(self.patterns[elem]["M2"]))
-                            print(elem + " old variance: " + str(self.patterns[elem]["variance"]))
-                            print(devaddr + " new mean: " + str(self.unconfirmed[devaddr]["interarrival"]))
-                            print(elem + " new M2: " + str(self.unconfirmed[devaddr]["M2"])) 
-                            print(devaddr + " new variance: " + str(self.unconfirmed[devaddr]["variance"]))
-                            print(devaddr + " comb mean: " + str(self.patterns[devaddr]["interarrival"]))
-                            print(devaddr + " comb M2: " + str(self.patterns[devaddr]["M2"]))
-                            print(devaddr + " comb variance: " + str(self.patterns[devaddr]["variance"]))
+                        '''
+                        if duplicate == True:
+                            print("are " + elem + " and " + devaddr + " the same?")
+                            print("m1: " + str(m) + " m2: " + str(unconf_m))
                             print()
-                            '''
+                            time.sleep(1)
+                        '''
 
-                            self.patterns.pop(elem)
+                        # è solo un controllo personale. da rimuovere
+                        if devaddr.split("_")[0] != elem.split("_")[0] and duplicate == True:
+                            #duplicate = False
+                            
+                            print("[ERROR] " + devaddr + " and " + elem + \
+                                " are different! mean1: " + \
+                                    str(unconf_m) + " mean2: " + str(m))
 
-                    if not duplicate:
-                        self.__set_pattern(devaddr, self.unconfirmed[devaddr])
-                        #print("New enter:")
-                        #print(p.dev_addr + " mean: " + str(self.patterns[p.dev_addr]["interarrival"]))
-                        #print(p.dev_addr + " variance: " + str(self.patterns[p.dev_addr]["variance"]))
-                        #print()
+                        if duplicate:
+                            #print("[" + elem + "] and " + "[" + devaddr + "] are duplicate" )
+                            #print()
+                            self.__merge_devices(elem, p)
+                            self.unconfirmed.pop(devaddr)
+                            return
 
+                    self.__set_pattern(devaddr)
                     self.unconfirmed.pop(devaddr)
-
-       
+                
+                else:
+                    to_analyze = self.unconfirmed.copy()
+                    for elem in to_analyze:
+                        if to_analyze[elem]["timestamp"] <= self.last_timestamp - 100000:
+                            self.unconfirmed.pop(elem)
         else:
             self.__update_pattern(p)
-            #print("Same device:")
-            #print(p.dev_addr + " mean: " + str(self.patterns[p.dev_addr]["interarrival"]))
-            #print(p.dev_addr + " variance: " + str(self.patterns[p.dev_addr]["variance"]))
-            #print()
-            #if p.dev_addr == "281_0":
-            #    print("[" + p.dev_addr + "]  mean: " + str(self.patterns[p.dev_addr]["interarrival"]))
+            '''
+            print("Same device:")
+            print(p.dev_addr + " mean: " + str(self.patterns[p.dev_addr]["interarrival"]))
+            print(p.dev_addr + " variance: " + str(self.patterns[p.dev_addr]["variance"]))
+            '''
+
 
     def statistics(self):
         # final data
         num_of_joins = self.current_section - 1
         num_of_data = self.num_of_packets - num_of_joins
+        num_of_deveui = len(set( [elem.split("_")[0] for elem in self.patterns] ))
 
         # print statistics
         print(30 * "=")
@@ -150,17 +137,37 @@ class IDS:
         print("Num. of Data packets: " + str(num_of_data))
         print("Num. of Join Requests: " + str(num_of_joins))
         print("Num. of sections: " + str(self.current_section))
+        print("Num of devices: " + str(len(self.patterns)))
+        print("Num of unique devices: " + str(num_of_deveui))
+        print("Len of unconfirmed pattern list: " + str(len(self.unconfirmed)))
         print()
         print(30 * "=" + "\n\n")
+        
+        '''
+        to_analyze = self.unconfirmed.copy()
+
+        for elem in to_analyze:
+            if (elem.split("_")[1] == "0"):
+                print(elem + " " + str(self.unconfirmed[elem]["timestamp"]) + " " + str(self.unconfirmed[elem]["count"] + 1))
+        
+        print()
+        print(self.last_timestamp)
+        #time.sleep(1)
+        '''
+
 
     
     def last_section_statistics(self):
         return self.current_section, self.last_section_packets, len(self.patterns)
 
-       
 
-    def __set_pattern(self, devaddr, dict):
-        self.patterns[devaddr] = dict
+    def get_deveui(self):
+        return [ elem.split("_")[0] for elem in self.patterns ]
+
+
+    # private methods
+    def __set_pattern(self, devaddr):
+        self.patterns[devaddr] = self.unconfirmed[devaddr]
 
 
     def __init_unconfirmed(self, elem):
@@ -193,9 +200,9 @@ class IDS:
 
         self.patterns[devaddr]["count"] = n
         self.patterns[devaddr]["timestamp"] = new_t
-        self.patterns[devaddr]["interarrival"] = m
+        self.patterns[devaddr]["interarrival"] = round(m, 4)
         self.patterns[devaddr]["M2"] = M2
-        self.patterns[devaddr]["variance"] = S
+        self.patterns[devaddr]["variance"] = round(S, 4)
 
 
     def __update_unconfirmed(self, p):
@@ -219,6 +226,52 @@ class IDS:
 
         self.unconfirmed[devaddr]["count"] = n
         self.unconfirmed[devaddr]["timestamp"] = new_t
-        self.unconfirmed[devaddr]["interarrival"] = m
+        self.unconfirmed[devaddr]["interarrival"] = round(m, 4)
         self.unconfirmed[devaddr]["M2"] = M2
-        self.unconfirmed[devaddr]["variance"] = S
+        self.unconfirmed[devaddr]["variance"] = round(S, 4)
+
+
+    def __verify_duplicate(self, m1, m2, S_1, S_2, count1, count2):
+        
+        dev_1 = (math.sqrt(S_1) / math.sqrt(count1)) ** 2
+        dev_2 = (math.sqrt(S_2) / math.sqrt(count2)) ** 2
+
+        z_test = abs(m2 - m1) / math.sqrt(dev_1 + dev_2)
+        #print(z_test)
+        return z_test <= 4
+
+        #error = 0.7
+        #margin = 3.5
+
+        #return abs(m2 - m1) <= error and abs(std_S_2 - std_S_1) <= margin
+
+
+    def __merge_devices(self, devaddr1, p):
+
+        devaddr2 = p.dev_addr
+
+        count1 = self.patterns[devaddr1]["count"]
+        mean1 = self.patterns[devaddr1]["interarrival"]
+        M2_1 = self.patterns[devaddr1]["M2"]
+        
+        count2 = self.unconfirmed[devaddr2]["count"]
+        mean2 = self.unconfirmed[devaddr2]["interarrival"]
+        M2_2 = self.unconfirmed[devaddr2]["M2"]
+
+        delta = mean2 - mean1
+        new_count = count1 + count2
+        delta = mean2 - mean1
+
+        new_mean = mean1 + delta * (count2/new_count)
+        new_M2 = M2_1 + M2_2 + (delta ** 2) * (count1 * count2/new_count)
+        new_S = new_M2 / (new_count - 1)
+
+        self.patterns[devaddr2] = {
+            "count": new_count,
+            "timestamp" : math.trunc(p.t),
+            "interarrival": round(new_mean, 4),
+            "M2": new_M2,
+            "variance": round(new_S, 4)
+        }
+
+        self.patterns.pop(devaddr1)

@@ -20,7 +20,7 @@ def real_dataset_statistics(packets):
                 current_section.append(dev_eui)
     sections.append(set(current_section))
     
-    return sections, len(tot_dev_eui)
+    return sections, tot_dev_eui
 
 def main():
 
@@ -34,7 +34,8 @@ def main():
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
 
     # elaboriamo a priori i dati per confrontarli con i risulati del nostro IDS
-    sections, num_of_devices = real_dataset_statistics(packets)    
+    sections, real_deveui = real_dataset_statistics(packets)    
+    num_of_devices = len(real_deveui)
 
     # accendiamo il nostro IDS
     ids = IDS(label)
@@ -85,12 +86,11 @@ def main():
     real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
     ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
 
-    print(">> [REAL] Current devices in the network: " + real_devices_netw)
-    print(">> [IDS] Current devices in the network: " + ids_devices_netw)
+    #print(">> [REAL] Current devices in the network: " + real_devices_netw)
+    #print(">> [IDS] Current devices in the network: " + ids_devices_netw)
 
     # conclusa l'analisi, stampiamo alcune statistiche generali
-    ids.statistics() 
-    
+    ids.statistics()     
 
 if __name__ == "__main__":
     main()
