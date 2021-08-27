@@ -1,252 +1,96 @@
 from os import scandir
-import math
 import pickle
+import time
 from ids import IDS
 
-def init(packets):
+
+def real_dataset_statistics(packets):
+    tot_dev_eui = []
     sections = []
     current_section = []
+
     for p in packets:
-        if (p.mtype == "Join Request"):
-            sections.append(current_section)
+        dev_eui = p.dev_eui
+        if p.mtype == "Join Request":
+            sections.append(set(current_section))
             current_section = []
         else:
-            current_section.append(p)
-    sections.append(current_section)
-
-    return sections, len(sections) - 1
-
-
-def quality_score(n):
-    return (n / (n + 10))
-
-
-def init_pattern(patterns, elem):
-    patterns[elem.dev_addr] = {
-        "count" : 1, 
-        "timestamps" : [elem.t],
-        "interarrivals": [],
-        "mean" : 0,
-        "quality_score": 0
-    }
-
-
-def add_timestamp(patterns, elem):
-    patterns[elem.dev_addr]["timestamps"].append(math.trunc(elem.t))
-    patterns[elem.dev_addr]["count"] += 1
-    patterns[elem.dev_addr]["quality_score"] = quality_score(patterns[elem.dev_addr]["count"])
-
-
-def get_mean(patterns, elem):
-    return patterns[elem]["mean"]
-
-
-def get_means(patterns):
-    means = {}
-    for elem in patterns:
-        means[elem] = patterns[elem]["mean"]
-    return means        
-
-
-def update_means(patterns):            
-    for dev_addr in patterns:
-        interarrivals = patterns[dev_addr]["interarrivals"]
-        if len(interarrivals) >= 1:
-            patterns[dev_addr]["mean"] = math.trunc(sum(interarrivals) / len(interarrivals))
-        else:
-            patterns[dev_addr]["mean"] = 0
-
-
-def update_realiabilities(patterns):            
-    for dev_addr in patterns:
-        timestamps = patterns[dev_addr]["timestamps"]
-        patterns[dev_addr]["reliability"] = len(timestamps)
-
-
-def update_interarrivals(patterns):
-    for dev_addr in patterns:        
-        timestamps = patterns[dev_addr]["timestamps"]
-
-        if len(timestamps) > 1:
-            interarrivals = []
-            for i in range(1, len(timestamps)):
-                x = timestamps[i] - timestamps[i-1]
-                interarrivals.append(x)
-            patterns[dev_addr]["interarrivals"] = interarrivals
-
-
-def calculate_reliability_score(patterns):
-    realibilities = {
-        "Low" : 0,
-        "Medium" : 0,
-        "High" : 0
-    }
-    realiability_score = 0
-    for dev_addr in patterns:
-        reliability = patterns[dev_addr]["reliability"]
-
-        if reliability <= 2:
-            realibilities["Low"] += 1
-        elif reliability > 2 and reliability <= 10:
-            realibilities["Medium"] += 1
-        else:
-            realibilities["High"] += 1 
-
-        realiability_score = (0.2 * realibilities["Low"] + \
-                                0.4 * realibilities["Medium"] + \
-                                0.4 * realibilities["High"] ) // len(realibilities)
-    return realiability_score
-
-
-def update_patterns(patterns):
-    update_interarrivals(patterns)
-    update_means(patterns)
-    update_realiabilities(patterns)
-
+            if dev_eui not in tot_dev_eui:
+                tot_dev_eui.append(dev_eui)
+                current_section.append(dev_eui)
+    sections.append(set(current_section))
+    
+    return sections, len(tot_dev_eui)
 
 def main():
 
-    # loading the datasets
+    # nome della rete
+    label = "Synth network"
+    #label = "Torre Canavese"
+
+
+    # carichiamo il dataset
     packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
-    label = "SYNTH DATA"
-    
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
-    #label = "REAL DATA"
 
-    # accenediamo il nostro IDS
-    ids = IDS()
+    # elaboriamo a priori i dati per confrontarli con i risulati del nostro IDS
+    sections, num_of_devices = real_dataset_statistics(packets)    
 
-    # PRIMO STEP
-    # Elaboriamo una serie di dati fondamentali
-    sections, join_requests = init(packets)
+    # accendiamo il nostro IDS
+    ids = IDS(label)
 
-    index = 0
-    # è un ciclo iniziale di tuning: se le informazioni che abbiamo
-    # in nostro possesso sono troppo poche allora andiamo avanti fino a quando
-    # non raggiungiamo un reliability score idoneo
-    # al momento questa parte la schippo, quindi pongo come threshold = 0    
-    
-    '''
-    realiability_score = 1
-    realiability_threshold = 0
-    while (realiability_score < realiability_threshold):
+
+    # IDS in ascolto
+    current_num_of_devices = 0
+    for p in packets:
+
+        mtype = ids.read_packet(p)
         
-        current_section = sections[index]        
+        if mtype == "Join Request":
+            current_section, last_section_packets, patterns = ids.last_section_statistics()
 
-        for elem in current_section:
-            if elem.dev_addr not in patterns:
-                init_pattern(patterns, elem)
-            else:
-                add_timestamp(patterns, elem)
+            index = current_section - 2
+            current_num_of_devices += len(sections[index])
 
-        update_patterns(patterns)    
+            real_devices_sect = len(sections[index])
+            real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
 
-        realiability_score = calculate_reliability_score(patterns)
+            ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
 
-        index += 1 
-    '''
-
-    # final data
-    num_of_packets = len(packets)
-    num_of_data = len([j for i in sections for j in i])
-    num_of_sections = len(sections)
-    num_of_joins = join_requests
-
-    # print statistics
-    print(30 * "=")
-    print()
-    print(label.upper())
-
-    print()
-
-    print("Num. of overall packets: " + str(num_of_packets))
-    print("Num. of Data packets: " + str(num_of_data))
-    print("Num. of Join Requests: " + str(num_of_joins))
-    print("Num. of sections: " + str(num_of_sections))
-    print()
-    print(30 * "=" + "\n\n")
-
-
-    # Abbiamo raccolto una sufficiente quantità di DevAddr, e la maggior parte di loro
-    # ha un pattern ben definito, quindi si analizzano i nuovi DevAddr e si cerca di capire
-    # se potenzialmente sono provenienti da nuovi o da vecchi devices.
-    
-    to_analyze = {}
-    tot_deveui = []
-    count = 0
-    tot_devices = 0
-    for section in sections:
+            
+            # stuff to print
+            #print("ANALYSIS OF SECTION N° " + str(current_section - 1))
+            '''           
+            print()
+            print(">> Total packets of section: ", last_section_packets)
+            print()
+            print(">> [REAL] Current devices in the network: " + real_devices_netw)
+            print(">> [IDS] Current devices in the network: " + ids_devices_netw)
+            print()
+            print(">> [REAL] New devices in this section: ", real_devices_sect)
+            print(">> [IDS]  New devices in this section: to be defined: ")
+            print("\n\n\n", end='')
+            '''
+            #time.sleep(3)
         
-        count += 1
-        new_devices = 0
-        section_deveui = []
-        for packet in section:
-            
-            devaddr = packet.dev_addr
-            timestamp = packet.t
-
-            deveui = devaddr.split("_")[0]
-            temp = devaddr.split("_")[1]
-
-            if deveui not in section_deveui:
-                section_deveui.append(deveui)
-
-            if deveui not in tot_deveui:
-                tot_deveui.append(deveui)
-                if temp == "0":
-                    new_devices += 1
-
-            if devaddr not in ids.get_patterns():
-                if devaddr not in to_analyze:
-                    init_pattern(to_analyze, packet)
-                else:
-                    add_timestamp(to_analyze, packet)
-                    update_patterns(to_analyze)
-               
-
-                    current_devaddr_mean = get_mean(to_analyze, devaddr)
-                    means = ids.get_means()
-
-                    error = 0
-                    duplicate = False
-                    for elem in means:
-                        m = means[elem]
-                        if current_devaddr_mean >= m - error and current_devaddr_mean <= m + error:
-                            suffix = devaddr.split("_")[1]
-                            if int(suffix) == 0:
-                                print(devaddr + " " + elem)
-                                print(str(current_devaddr_mean) + " " + str(m))
-                                print("There is an error!")
-                                exit()
-                            duplicate = True
-                    
-                    if not duplicate:
-                        ids.set_pattern(devaddr, to_analyze[devaddr])
-                        to_analyze.pop(devaddr)
-                        
-
-            else:
-                ids.add_timestamp(packet)
-
-            ids.update_patterns()
-            
-        tot_devices += new_devices        
-
-
-        # stuff to print
-        print("ANALYSIS OF SECTION N° " + str(count))
-        if len(section) > 0:
-            print(">> Total packets of section: " + str(len(section)))
-            print(">> Percentage of new devices: {0:.0%}".format(new_devices / len(section_deveui)))
         else:
-            print(">> No packets received")
-        
-        print(">> Total devices in the network: " + str(tot_devices))
-        print(">> Patterns recognized by IDS: ", len(ids.get_patterns()))
-        print(">> Patterns still to recognize: ", len(to_analyze))
-        print()
-        #time.sleep(3)
+            ids.elaborate_pattern(p)
 
+
+    current_section, last_section_packets, patterns = ids.last_section_statistics()
+
+    index = current_section - 2
+    current_num_of_devices += len(sections[index])
+
+    real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
+    ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
+
+    print(">> [REAL] Current devices in the network: " + real_devices_netw)
+    print(">> [IDS] Current devices in the network: " + ids_devices_netw)
+
+    # conclusa l'analisi, stampiamo alcune statistiche generali
+    ids.statistics() 
+    
 
 if __name__ == "__main__":
     main()
