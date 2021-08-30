@@ -1,6 +1,7 @@
 from os import scandir
 import pickle
 import time
+from types import MethodType
 from ids import IDS
 
 
@@ -35,34 +36,36 @@ def main():
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
 
     # elaboriamo a priori i dati per confrontarli con i risulati del nostro IDS
-    sections, real_deveui = real_dataset_statistics(packets)    
-    num_of_devices = len(real_deveui)
+    #sections, real_deveui = real_dataset_statistics(packets)    
+    #num_of_devices = len(real_deveui)
 
     # accendiamo il nostro IDS
     ids = IDS(label)
 
 
     # IDS in ascolto
-    current_num_of_devices = 0
+    # current_num_of_devices = 0
     for p in packets:
 
-        mtype = ids.read_packet(p)
+        #mtype = p.mtype
+
+        ids.read_packet(p)
         
+        '''
         if mtype == "Join Request":
             current_section, last_section_packets, patterns = ids.last_section_statistics()
 
             index = current_section - 2
             current_num_of_devices += len(sections[index])
 
-            real_devices_sect = len(sections[index])
-            real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
+            #real_devices_sect = len(sections[index])
+            #real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
 
-            ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
+            #ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
 
-            
             # stuff to print
             #print("ANALYSIS OF SECTION N° " + str(current_section - 1))
-            '''           
+      
             print()
             print(">> Total packets of section: ", last_section_packets)
             print()
@@ -72,27 +75,28 @@ def main():
             print(">> [REAL] New devices in this section: ", real_devices_sect)
             print(">> [IDS]  New devices in this section: to be defined: ")
             print("\n\n\n", end='')
-            '''
+            
             #time.sleep(3)
-        
-        else:
-            ids.elaborate_pattern(p)
+        '''
 
+    #current_section, last_section_packets, patterns = ids.last_section_statistics()
 
-    current_section, last_section_packets, patterns = ids.last_section_statistics()
+    #index = current_section - 2
+    #current_num_of_devices += len(sections[index])
 
-    index = current_section - 2
-    current_num_of_devices += len(sections[index])
-
-    real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
-    ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
+    #real_devices_netw = str(current_num_of_devices) + "/" + str(num_of_devices)
+    #ids_devices_netw = str(patterns) + "/" + str(num_of_devices)
 
     #print(">> [REAL] Current devices in the network: " + real_devices_netw)
     #print(">> [IDS] Current devices in the network: " + ids_devices_netw)
 
     # conclusa l'analisi, stampiamo alcune statistiche generali
+    
     ids.statistics()     
 
 
 if __name__ == "__main__":
+
+    start_time = time.time()
     main()
+    print("--- %s seconds ---\n\n" % (time.time() - start_time))
