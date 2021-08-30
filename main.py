@@ -22,6 +22,7 @@ def real_dataset_statistics(packets):
     
     return sections, tot_dev_eui
 
+
 def main():
 
     # nome della rete
@@ -91,6 +92,7 @@ def main():
 
     # conclusa l'analisi, stampiamo alcune statistiche generali
     ids.statistics()     
+
 
 if __name__ == "__main__":
     main()
