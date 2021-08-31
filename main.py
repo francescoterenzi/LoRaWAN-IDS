@@ -1,7 +1,6 @@
 from os import scandir
 import pickle
 import time
-from types import MethodType
 from ids import IDS
 
 
@@ -40,14 +39,10 @@ def main():
     #num_of_devices = len(real_deveui)
 
     # accendiamo il nostro IDS
-    ids = IDS(label)
-
+    ids = IDS(label) 
 
     # IDS in ascolto
-    # current_num_of_devices = 0
     for p in packets:
-
-        #mtype = p.mtype
 
         ids.read_packet(p)
         
@@ -77,7 +72,6 @@ def main():
             print("\n\n\n", end='')
             
             #time.sleep(3)
-        '''
 
     #current_section, last_section_packets, patterns = ids.last_section_statistics()
 
@@ -89,9 +83,9 @@ def main():
 
     #print(">> [REAL] Current devices in the network: " + real_devices_netw)
     #print(">> [IDS] Current devices in the network: " + ids_devices_netw)
+    '''
 
     # conclusa l'analisi, stampiamo alcune statistiche generali
-    
     ids.statistics()     
 
 

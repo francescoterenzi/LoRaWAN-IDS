@@ -1,35 +1,37 @@
+import numpy as np
+
 class Distribution:
 
     def __init__(self):
-        self.m = 0
-        self.M2 = 0
-        self.s = 0
-        self.lowest = 0
-        self.highest = 0
-        self.range = 0
+        self.values = np.empty(1)
+        #self.m = 0
+        #self.M2 = 0
+        #self.s = 0
+        #self.lowest = 0
+        #self.highest = 0
+        #self.range = 0
         self.n = 0
 
 
     def update(self, x):
-
         self.n += 1
+        np.append(self.values, x)
+        #self.values.append(x)
 
-        if self.lowest > x:
-            self.lowest = x
-        
-        if self.highest < x:
-            self.highest = x
+        #self.lowest = min(self.values)        
+        #self.highest = max(self.values)
 
-        if self.lowest == x or self.highest == x:
-            self.range = self.highest - self.lowest
+        #self.range = self.highest - self.lowest
 
+        '''
         if self.n > 1:
             delta = x - self.m
             self.m += delta / (self.n - 1)
             self.M2 += delta * (x - self.m)
             self.s = self.M2 / (self.n - 1)
+        '''
     
-
+    '''
     def merge(self, distribution2):
         
         n1 = self.n        
@@ -48,8 +50,13 @@ class Distribution:
         new_M2 = M2_1 + M2_2 + (delta ** 2) * (n1 * n2/new_n)
         new_s = new_M2 / (new_n - 1)
 
+        self.values += distribution2.values
         self.n = new_n
         self.m = new_mean
         self.M2 = new_M2
         self.s = new_s
-        
+
+        self.highest = max(self.values)
+        self.lowest = min(self.values)
+        self.range = self.highest - self.lowest 
+    '''

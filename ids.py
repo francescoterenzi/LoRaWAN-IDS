@@ -1,10 +1,6 @@
-# import matplotlib.pyplot as plt
-# import numpy as np
-# import scipy.stats as stats
-# import math
 from time import sleep
 from pattern import Pattern
-
+import numpy as np
 
 class IDS:
 
@@ -18,11 +14,15 @@ class IDS:
         self.last_section_packets = 0
         self.current_section_packets = 0
         self.last_timestamp = 0
+        self.num_of_err = 0
 
 
     def read_packet(self, p):
         self.num_of_packets += 1
-        
+
+        #if self.num_of_packets % 1000 == 0:
+        #    print(self.num_of_packets)
+
         if (p.mtype == "Join Request"):
             self.current_section += 1
             self.last_section_packets = self.current_section_packets
@@ -54,15 +54,25 @@ class IDS:
         print("Num. of Data packets: " + str(num_of_data))
         print("Num. of Join Requests: " + str(num_of_joins))
         print("Num. of sections: " + str(self.current_section))
-        print("Num of devices: " + str(len(self.confirmed)))
-        print("Num of unique devices: " + str(num_of_deveui))
-        print("Len of unconfirmed pattern list: " + str(len(self.unconfirmed)))
+        print("Num. of devices: " + str(len(self.confirmed)))
+        print("Num. of unique devices: " + str(num_of_deveui))
+        print("Len. of unconfirmed pattern list: " + str(len(self.unconfirmed)))
+        print("Num. of errors: " + str(self.num_of_err))
         print()
         print(30 * "=" + "\n\n")
 
-        # for elem in self.unconfirmed:
-        #    print(elem + " " + str(self.unconfirmed[elem].get_count()))
-    
+        '''
+        f = open("test.txt", "w")
+        for elem in sorted(self.confirmed):
+            m = self.confirmed[elem].distribution.m
+            l = self.confirmed[elem].distribution.lowest
+            h = self.confirmed[elem].distribution.highest
+            r = self.confirmed[elem].distribution.range
+            n = self.confirmed[elem].distribution.n + 1
+            f.write(elem + "\t" + str(m) + "\t" + str(l) + "\t" + str(h) + "\t" + str(r) + "\t" + str(n)+ "\n")
+        f.close()
+        '''
+
 
     def last_section_metrics(self):
         return self.current_section, self.last_section_packets, len(self.confirmed)
@@ -70,84 +80,91 @@ class IDS:
 
     # private methods
     def __elaborate_packet(self, p):
+
+        if p.dev_eui == "22" or p.dev_eui == "125" or p.dev_eui == "161":
+            return
+
         devaddr = p.dev_addr
 
-        if devaddr in self.confirmed.keys():
-            self.__update(p)
+        #if devaddr in self.confirmed.keys():
+        #    self.confirmed[devaddr].update(p.t)
 
-        else:
+        
+        if devaddr not in self.confirmed.keys():
             if devaddr in self.unconfirmed.keys():
-                # aggiorniamo i dati del device nella lista sospetta
-                self.__update(p, False)
 
-                #current_count = self.unconfirmed[devaddr].get_count()
-                quality_score = self.unconfirmed[devaddr].quality_score
+                # aggiorniamo i dati del device nella lista sospetta
+                self.unconfirmed[devaddr].update(p.t)
+
+                current_count = self.unconfirmed[devaddr].n
+                #quality_score = self.unconfirmed[devaddr].quality_score
 
                 # questo device è apparso più di tot. volte -> quality score alto     
-                if quality_score >= 0.90:
+                if current_count >= 30:
 
                     duplicate = False
-                    to_analyze = self.__list_to_analyze()
+                    #to_analyze = self.__list_to_analyze()
+
+                    #print(len(to_analyze))
+                    
+                    pattern2 = self.unconfirmed[devaddr]
+
+                    to_analyze = self.confirmed.keys() - list(self.current_section_devaddr)
 
                     for elem in to_analyze:
-                   
-                        duplicate = self.__verify_duplicate(elem, devaddr)
-     
-                        # è solo un controllo personale. da rimuovere
-                        if devaddr.split("_")[0] != elem.split("_")[0] and duplicate == True:
-                            duplicate = False
-                            print("[ERROR] " + devaddr + " and " + elem + " are different!")
+                        
+                        if abs(self.unconfirmed[devaddr].m - self.confirmed[elem].m) < 10:
+                            pattern1 = self.confirmed[elem]
+                            
+                            duplicate = pattern1.equals(pattern2)
 
-                        if duplicate:
-                            #print("[" + elem + "] and " + "[" + devaddr + "] are duplicate" )
-                            #print()
-                            self.__merge_devices(elem, devaddr)
-                            return
+                            #print(duplicate)
 
-                    self.__set(p)
+                            # è solo un controllo personale. da rimuovere
+                            if devaddr.split("_")[0] != elem.split("_")[0] and duplicate == True:
+                                #duplicate = False
+                                print("[ERROR] " + devaddr + " and " + elem + " are different!")
+
+                            #if int(devaddr.split("_")[1]) != int(elem.split("_")[1]) + 1 and duplicate == True:
+                            #    print("[MISSING] " + devaddr + " and " + elem)
+
+                            if duplicate:
+                                # appaertengono allo stesso device -> merge!
+                                #print("[DUPLICATE] " + devaddr + " and " + elem + " are the same device!")
+                                #self.confirmed[elem].merge(pattern2)
+                                #self.confirmed[devaddr] = self.confirmed[elem]
+                                
+                                self.confirmed[devaddr] = pattern2
+
+                                self.confirmed.pop(elem)
+                                self.unconfirmed.pop(devaddr)
+                                return
+                        
+                    if not duplicate:
+                        #print("[NEW DEV] " + devaddr + " is a new device!")
+                        if int(devaddr.split("_")[1]) > 1:
+                            print("[ERROR] " + devaddr + " is not a new device")
+                            
+                            for elem in self.confirmed:
+                                if elem.split("_")[0] == devaddr.split("_")[0]:
+                                    m1 = self.confirmed[elem].m
+                                    n1 = self.confirmed[elem].n
+                                    m2 = self.unconfirmed[devaddr].m
+                                    n2 = self.unconfirmed[devaddr].n
+                                    print(elem + " m1: " + str(m1) + " n1: " + str(n1))
+                                    print(devaddr + " m2: " + str(m2) + " n2: " + str(n2))
+
+                            print()
+                            self.num_of_err += 1 
+                        
+                        self.confirmed[devaddr] = pattern2
+                    
                     self.unconfirmed.pop(devaddr)
 
             else:
                 # inseriamo il devaddr nella lista sospetta
-                self.__set(p, False)
-
-
-    def __set(self, p, confirmed=True):
-        devaddr = p.dev_addr
-        if confirmed:
-            self.confirmed[devaddr] = self.unconfirmed[devaddr]
+                pattern = Pattern(devaddr, p.t, self.current_section)
+                self.unconfirmed[devaddr] = pattern
+        
         else:
-            timestamp = p.t
-            pattern = Pattern(devaddr, timestamp)
-            self.unconfirmed[devaddr] = pattern
-
-
-    def __update(self, p, confirmed=True):
-        devaddr = p.dev_addr
-        if confirmed:
             self.confirmed[devaddr].update(p.t)
-        else:
-            self.unconfirmed[devaddr].update(p.t)
-
-
-    def __verify_duplicate(self, devaddr1, devaddr2):
-        
-        pattern1 = self.confirmed[devaddr1]
-        pattern2 = self.unconfirmed[devaddr2]
-
-        return pattern1.equals(pattern2)
-
-
-    def __merge_devices(self, devaddr1, devaddr2):
-        
-        pattern2 = self.unconfirmed[devaddr2]
-        self.confirmed[devaddr1].merge(pattern2)
-        
-        self.confirmed[devaddr2] = self.confirmed[devaddr1]
-        self.confirmed.pop(devaddr1)
-
-
-    def __list_to_analyze(self):
-        patterns = self.confirmed.copy()
-        pattern_keys = set(patterns.keys())
-        return pattern_keys - self.current_section_devaddr
