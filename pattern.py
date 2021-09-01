@@ -36,6 +36,9 @@ class Pattern:
 
 
     def equals(self, pattern2):
+
+        # Kolmogorov–Smirnov test
+
         x = self.values
         n1 = self.n
 
