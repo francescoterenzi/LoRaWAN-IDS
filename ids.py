@@ -1,6 +1,6 @@
 from time import sleep
 from pattern import Pattern
-import numpy as np
+import time
 
 class IDS:
 
@@ -19,9 +19,6 @@ class IDS:
 
     def read_packet(self, p):
         self.num_of_packets += 1
-
-        #if self.num_of_packets % 1000 == 0:
-        #    print(self.num_of_packets)
 
         if (p.mtype == "Join Request"):
             self.current_section += 1
@@ -61,18 +58,6 @@ class IDS:
         print()
         print(30 * "=" + "\n\n")
 
-        '''
-        f = open("test.txt", "w")
-        for elem in sorted(self.confirmed):
-            m = self.confirmed[elem].distribution.m
-            l = self.confirmed[elem].distribution.lowest
-            h = self.confirmed[elem].distribution.highest
-            r = self.confirmed[elem].distribution.range
-            n = self.confirmed[elem].distribution.n + 1
-            f.write(elem + "\t" + str(m) + "\t" + str(l) + "\t" + str(h) + "\t" + str(r) + "\t" + str(n)+ "\n")
-        f.close()
-        '''
-
 
     def last_section_metrics(self):
         return self.current_section, self.last_section_packets, len(self.confirmed)
@@ -81,14 +66,11 @@ class IDS:
     # private methods
     def __elaborate_packet(self, p):
 
+        # device con medie uguali, li togliamo altrimenti si sballa tutto
         if p.dev_eui == "22" or p.dev_eui == "125" or p.dev_eui == "161":
             return
 
         devaddr = p.dev_addr
-
-        #if devaddr in self.confirmed.keys():
-        #    self.confirmed[devaddr].update(p.t)
-
         
         if devaddr not in self.confirmed.keys():
             if devaddr in self.unconfirmed.keys():
@@ -97,70 +79,46 @@ class IDS:
                 self.unconfirmed[devaddr].update(p.t)
 
                 current_count = self.unconfirmed[devaddr].n
-                #quality_score = self.unconfirmed[devaddr].quality_score
 
                 # questo device è apparso più di tot. volte -> quality score alto     
                 if current_count >= 30:
-
+            
                     duplicate = False
-                    #to_analyze = self.__list_to_analyze()
+                    m = self.unconfirmed[devaddr].m
 
-                    #print(len(to_analyze))
-                    
                     pattern2 = self.unconfirmed[devaddr]
 
-                    to_analyze = self.confirmed.keys() - list(self.current_section_devaddr)
+                    # ricavo una lista inziale di tutti i devaddr da analizzare
+                    # cioè tutti i devaddr confermati, tranne quelli della sezione corrente
+                    l1 = list(filter(lambda x: x not in self.current_section_devaddr, self.confirmed)) 
 
-                    for elem in to_analyze:
+                    # ricavo una seconda lista da quella precedente, in cui rimuovo i device
+                    # la cui media si discosta notevolmente da quella del devaddr corrente
+                    l2 = list(filter(lambda x: abs(self.confirmed[x].m - m) < 10, l1))
+
+                    # ricavo una terza lista da quella precedente, in cui filtro solo gli
+                    # elementi che sono duplicati rispetto al devaddr corrente
+                    l3 = list(filter(lambda x: self.confirmed[x].equals(pattern2), l2))    
+
+                    if len(l3) >= 1:
+                        elem = l3[0]
+
+                        if devaddr.split("_")[0] != elem.split("_")[0]:
+                            print("[ERROR] " + devaddr + " and " + elem + " are different!")
                         
-                        if abs(self.unconfirmed[devaddr].m - self.confirmed[elem].m) < 10:
-                            pattern1 = self.confirmed[elem]
-                            
-                            duplicate = pattern1.equals(pattern2)
+                        #if int(devaddr.split("_")[1]) != int(elem.split("_")[1]) + 1:
+                        #    print("[MISSING] " + devaddr + " and " + elem)
 
-                            #print(duplicate)
-
-                            # è solo un controllo personale. da rimuovere
-                            if devaddr.split("_")[0] != elem.split("_")[0] and duplicate == True:
-                                #duplicate = False
-                                print("[ERROR] " + devaddr + " and " + elem + " are different!")
-
-                            #if int(devaddr.split("_")[1]) != int(elem.split("_")[1]) + 1 and duplicate == True:
-                            #    print("[MISSING] " + devaddr + " and " + elem)
-
-                            if duplicate:
-                                # appaertengono allo stesso device -> merge!
-                                #print("[DUPLICATE] " + devaddr + " and " + elem + " are the same device!")
-                                #self.confirmed[elem].merge(pattern2)
-                                #self.confirmed[devaddr] = self.confirmed[elem]
-                                
-                                self.confirmed[devaddr] = pattern2
-
-                                self.confirmed.pop(elem)
-                                self.unconfirmed.pop(devaddr)
-                                return
-                        
-                    if not duplicate:
+                        self.confirmed.pop(elem)
+                    else:
                         #print("[NEW DEV] " + devaddr + " is a new device!")
                         if int(devaddr.split("_")[1]) > 1:
                             print("[ERROR] " + devaddr + " is not a new device")
-                            
-                            for elem in self.confirmed:
-                                if elem.split("_")[0] == devaddr.split("_")[0]:
-                                    m1 = self.confirmed[elem].m
-                                    n1 = self.confirmed[elem].n
-                                    m2 = self.unconfirmed[devaddr].m
-                                    n2 = self.unconfirmed[devaddr].n
-                                    print(elem + " m1: " + str(m1) + " n1: " + str(n1))
-                                    print(devaddr + " m2: " + str(m2) + " n2: " + str(n2))
+                            self.num_of_err += 1
 
-                            print()
-                            self.num_of_err += 1 
-                        
-                        self.confirmed[devaddr] = pattern2
-                    
+                    self.confirmed[devaddr] = pattern2
                     self.unconfirmed.pop(devaddr)
-
+     
             else:
                 # inseriamo il devaddr nella lista sospetta
                 pattern = Pattern(devaddr, p.t, self.current_section)
