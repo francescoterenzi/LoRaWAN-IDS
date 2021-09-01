@@ -1,6 +1,5 @@
 from time import sleep
 from pattern import Pattern
-import time
 
 class IDS:
 
