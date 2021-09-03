@@ -11,6 +11,7 @@ class Pattern:
         self.devaddr = devaddr
         self.timestamp = timestamp
         self.values = []
+        self.segments = []
         self.n = 0
         self.m = 0
         self.quality_score = 0
@@ -24,15 +25,19 @@ class Pattern:
         new_t = timestamp
         
         x = new_t - old_t
-        self.values.append(x)
-        self.n += 1
+        
+        for s in self.segments:
+            if s.mean == 0:
+                s.mean = x
+            elif abs(s.mean - x) < 10:
+                s.values.append(x)
+                s.n += 1
 
-        if self.n > 1:
-            delta = x - self.m
-            self.m += delta / (self.n - 1)
+                if s.n > 1:
+                    delta = x - s.mean
+                    s.mean += delta / (s.n - 1)
 
         self.timestamp = new_t
-
 
 
     def equals(self, pattern2):

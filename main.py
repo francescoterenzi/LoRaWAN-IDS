@@ -25,14 +25,16 @@ def real_dataset_statistics(packets):
 
 def main():
 
-    # nome della rete
-    label = "Synth network"
+    #label = "Synth network"
     #label = "Torre Canavese"
-
+    label = "Synth network v2"
 
     # carichiamo il dataset
-    packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
+    #packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
+    packets =  pickle.load(open("synth_traffic.pickle", "rb"))
+
+
 
     # accendiamo il nostro IDS
     ids = IDS(label) 

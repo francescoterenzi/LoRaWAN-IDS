@@ -1,4 +1,5 @@
 *.devaddr
+*.pickle
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
