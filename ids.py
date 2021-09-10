@@ -1,42 +1,31 @@
+from hashlib import new
+from random import triangular
 from time import sleep
+from typing import ContextManager
 from pattern import Pattern
+from segment import Segment
 
 class IDS:
 
     def __init__(self, label):
         
-        # name of the newtork
         self.label = label
-
-        # index of current section
         self.current_section = 1
-        
-        # dictionary of confirmed patterns
-        self.confirmed = {}
 
-        # list of temporary confirmed devaddr
+        self.confirmed = {}
+        self.unconfirmed = {}
         self.quarantine = {}
 
-        # dictionary of unconfirmed patterns
-        self.unconfirmed = {}
-        
-        # unique devaddr in the current section
-        self.current_section_devaddr = set()
-        
-        # num of packets actually received
-        self.num_of_packets = 0
-        
-        # num of the packets in the last secton
-        self.last_section_packets = 0
+        self.to_analyze = {}
 
-        # num of the packets in the last secton
+        self.num_of_packets = 0
+        self.last_section_packets = 0
         self.current_section_packets = 0
-        
-        # last timestamp received
         self.last_timestamp = 0
-        
-        # to remove, only for personal statistics
         self.num_of_err = 0
+
+        self.f = open("result.txt", "w")
+        self.f.close()
 
 
     def read_packet(self, p):
@@ -46,13 +35,18 @@ class IDS:
             self.current_section += 1
             self.last_section_packets = self.current_section_packets
             self.current_section_packets = 0
-            self.current_section_devaddr = set()
+            self.f = open("result.txt", "a")
+            self.f.write("\n\nSECTION n." + str(self.current_section) + "\n")
+            self.f.close()
 
         else:
             self.current_section_packets += 1
             self.last_timestamp = p.t
 
-            self.__elaborate_packet(p)
+            if self.current_section == 1:
+                self.__first_section(p)
+            else:
+                self.__following_sections(p)
         
 
     def statistics(self):
@@ -85,66 +79,151 @@ class IDS:
 
 
     # private methods
-    def __elaborate_packet(self, p):
+    def __first_section(self, p):
 
         devaddr = p.dev_addr
 
         if devaddr in self.confirmed.keys():
             self.confirmed[devaddr].update(p.t)
-
          
         else:
+            self.confirmed[devaddr] = Pattern(p.t)
+            self.f = open("result.txt", "a")
+            self.f.write("[1st DEV] " + devaddr +"\n")
+            self.f.close()
 
-            if devaddr in self.unconfirmed.keys():
 
-                # aggiorniamo i dati del device nella lista sospetta
+    def __following_sections(self, p):
+
+        devaddr = p.dev_addr
+        
+        #print()
+        #print(devaddr)     
+
+        if devaddr in self.confirmed.keys():
+            self.confirmed[devaddr].update(p.t)
+            #print("[UPDATE] " + devaddr)
+            self.__clean_undefined(devaddr)
+
+        else:
+            if devaddr in self.unconfirmed:
                 self.unconfirmed[devaddr].update(p.t)
+                
+                if devaddr in self.quarantine:
 
-                current_count = self.unconfirmed[devaddr].n
+                    elem = self.quarantine[devaddr][0]
+                    timestamp = self.quarantine[devaddr][1]
+                    pattern = self.confirmed[elem]
 
-                # questo device è apparso più di tot. volte -> quality score alto     
-                if current_count >= 30:
-            
-                    duplicate = False
-                    m = self.unconfirmed[devaddr].m
+                    x = Segment(p.t - timestamp)
+                    if x.belongs_to(pattern):
+                        #print("[DUPLICATE] " + devaddr + " " + elem)
 
-                    pattern2 = self.unconfirmed[devaddr]
+                        self.confirmed[devaddr] = self.unconfirmed[devaddr]
 
-                    # ricavo una lista inziale di tutti i devaddr da analizzare
-                    # cioè tutti i devaddr confermati, tranne quelli della sezione corrente
-                    l1 = list(filter(lambda x: x not in self.current_section_devaddr, self.confirmed)) 
-
-                    # ricavo una seconda lista da quella precedente, in cui rimuovo i device
-                    # la cui media si discosta notevolmente da quella del devaddr corrente
-                    l2 = list(filter(lambda x: abs(self.confirmed[x].m - m) < 10, l1))
-
-                    # ricavo una terza lista da quella precedente, in cui filtro solo gli
-                    # elementi che sono duplicati rispetto al devaddr corrente
-                    l3 = list(filter(lambda x: self.confirmed[x].equals(pattern2), l2))    
-
-                    if len(l3) >= 1:
-                        elem = l3[0]
-
-                        if devaddr.split("_")[0] != elem.split("_")[0]:
-                            print("[ERROR] " + devaddr + " and " + elem + " are different!")
-                        
-                        #if int(devaddr.split("_")[1]) != int(elem.split("_")[1]) + 1:
-                        #    print("[MISSING] " + devaddr + " and " + elem)
-
+                        self.__clean_undefined(elem)
                         self.confirmed.pop(elem)
-                    
-                    else:
-                        print("[NEW DEV] " + devaddr + " is a new device!" + " section n. " + str(self.current_section))
-                        sleep(3)
-                        if int(devaddr.split("_")[1]) > 1:
-                            print("[ERROR] " + devaddr + " is not a new device")
-                            self.num_of_err += 1
 
-                    self.confirmed[devaddr] = pattern2
-                    if devaddr in self.quarantine:
-                        self.quarantine.pop(devaddr)
+                        self.__check_duplicate(devaddr, elem)
+
+                    else:
+                        print("[QUAR -> NEW DEV] " + devaddr)
+                        #self.__check_new_dev(devaddr)
+                        new_pattern = self.unconfirmed[devaddr][elem]
+                        new_pattern.verified = True
+                        self.confirmed[devaddr] = new_pattern
+                        self.__check_quar_new_dev(devaddr)
+
                     self.unconfirmed.pop(devaddr)
-    
+                    self.quarantine.pop(devaddr)
+                    self.to_analyze.pop(devaddr)
+
+                else:
+                    to_analyze = self.to_analyze[devaddr]
+
+                    unconf_pattern = self.unconfirmed[devaddr]
+                    segments = unconf_pattern.segments
+
+                    for e in to_analyze:
+
+                        conf_pattern = self.confirmed[e]        
+
+                        if conf_pattern.verified:
+
+                            pattern_matching = True
+                            for s in segments:
+                                if not s.belongs_to(conf_pattern):
+                                    pattern_matching = False
+                                    break
+                            
+                            if pattern_matching:
+                                if len(unconf_pattern.segments) == len(conf_pattern.segments):
+                                    # hanno lo stesso pattern, devo aspettare il prossimo pacchetto
+                                    #print("[QUARANTINE] " + devaddr + " " + e)
+                                    self.quarantine[devaddr] = (e, p.t)
+                            
+                            else:
+                                self.to_analyze[devaddr].remove(e)
+
+                    if len(self.to_analyze[devaddr]) == 0:        
+                        #print("[NEW DEV] " + devaddr)
+                        self.confirmed[devaddr] = unconf_pattern
+
+                        self.unconfirmed.pop(devaddr)
+                        self.to_analyze.pop(devaddr)
+
+                        self.__check_new_dev(devaddr)
+
             else:
-                pattern = Pattern(devaddr, p.t, self.current_section)
-                self.unconfirmed[devaddr] = pattern
+                # it's a new devaddr
+                self.unconfirmed[devaddr] = Pattern(p.t)
+                self.to_analyze[devaddr] = [elem for elem in self.confirmed]
+
+                self.f = open("result.txt", "a")
+                self.f.write("[UNCONF DEV] " + devaddr + "\n")
+                self.f.close()
+
+
+    def __check_duplicate(self, devaddr1, devaddr2):
+        self.f = open("result.txt", "a")
+        deveui1 = devaddr1.split("_")[0]
+        deveui2 = devaddr2.split("_")[0]
+        seq1 = int(devaddr1.split("_")[1])
+        seq2 = int(devaddr2.split("_")[1])
+
+        if deveui1 != deveui2:
+            self.f.write("[DUPLICATE ERROR] " + devaddr1 + " and" + devaddr2 + " don't belong to the same dev\n")
+            self.num_of_err += 1
+        elif abs(seq1 - seq2) > 1:
+            self.f.write("[DUPLICATE MISSING] " + devaddr1 + " and " + devaddr2 + " are not consecutive\n")
+            self.num_of_err += 1
+        else:
+            self.f.write("[DUPLICATE] " + devaddr2 + " and " + devaddr1 + " belong to the same dev\n")
+        self.f.close()
+    
+
+    def __check_new_dev(self, devaddr):
+        self.f = open("result.txt", "a")
+        count = devaddr.split("_")[1]
+        if int(count) >= 1:
+            self.f.write("[NEW DEV ERROR] " + devaddr + " is not a new dev\n")
+        else:
+            self.f.write("[NEW DEV] " + devaddr + " is a new device\n")
+        self.f.close()
+
+    def __check_quar_new_dev(self, devaddr):
+        self.f = open("result.txt", "a")
+        count = devaddr.split("_")[1]
+        if int(count) >= 1:
+            self.f.write("[QUAR - >NEW DEV ERROR] " + devaddr + " is not a new dev\n")
+        else:
+            self.f.write("[QUAR -> NEW DEV] " + devaddr + " is a new device\n")
+        self.f.close()
+
+
+    def __clean_undefined(self, devaddr):
+        to_analyze = self.to_analyze.copy()
+        for elem in to_analyze:
+            if devaddr in to_analyze[elem]:
+                self.to_analyze[elem].remove(devaddr)
+            

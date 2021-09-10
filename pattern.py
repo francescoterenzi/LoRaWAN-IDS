@@ -1,43 +1,49 @@
+from os import times
+from segment import Segment
 from time import sleep
 import math
+import time
 import numpy as np
 from scipy.stats import ks_2samp
 
 class Pattern:
 
-    percentage_speed = 10
-
-    def __init__(self, devaddr, timestamp, section):
-        self.devaddr = devaddr
+    def __init__(self, timestamp):
         self.timestamp = timestamp
-        self.values = []
+        self.n = 1
+        self.verified = False
         self.segments = []
-        self.n = 0
-        self.m = 0
-        self.quality_score = 0
-        self.section = section
         self.alpha = 0.001
 
 
     def update(self, timestamp):
 
+        len_before = len(self.segments)
+
+        self.n += 1
+
         old_t = self.timestamp 
-        new_t = timestamp
+        self.timestamp = timestamp
+
+        x = self.timestamp - old_t
         
-        x = new_t - old_t
-        
+        found = False
         for s in self.segments:
-            if s.mean == 0:
-                s.mean = x
-            elif abs(s.mean - x) < 10:
+            if abs(s.mean - x) < 4:
+                found = True
                 s.values.append(x)
                 s.n += 1
+                old_m = s.mean
+                s.mean = old_m + ((x - old_m) / s.n) 
+        
+        if found:
+            self.verified = True
 
-                if s.n > 1:
-                    delta = x - s.mean
-                    s.mean += delta / (s.n - 1)
-
-        self.timestamp = new_t
+        if not found:
+            # new segment
+            segment = Segment(x)
+            self.segments.append(segment)
+            self.verified = False
 
 
     def equals(self, pattern2):

@@ -3,7 +3,6 @@ import pickle
 import time
 from ids import IDS
 
-
 def real_dataset_statistics(packets):
     tot_dev_eui = []
     sections = []
@@ -13,6 +12,7 @@ def real_dataset_statistics(packets):
         dev_eui = p.dev_eui
         if p.mtype == "Join Request":
             sections.append(set(current_section))
+
             current_section = []
         else:
             if dev_eui not in tot_dev_eui:
@@ -33,8 +33,7 @@ def main():
     #packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
     packets =  pickle.load(open("synth_traffic.pickle", "rb"))
-
-
+    
 
     # accendiamo il nostro IDS
     ids = IDS(label) 
