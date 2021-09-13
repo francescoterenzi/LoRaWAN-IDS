@@ -3,24 +3,34 @@ import pickle
 import time
 from ids import IDS
 
-def real_dataset_statistics(packets):
-    tot_dev_eui = []
-    sections = []
-    current_section = []
 
-    for p in packets:
-        dev_eui = p.dev_eui
-        if p.mtype == "Join Request":
-            sections.append(set(current_section))
-
-            current_section = []
-        else:
-            if dev_eui not in tot_dev_eui:
-                tot_dev_eui.append(dev_eui)
-                current_section.append(dev_eui)
-    sections.append(set(current_section))
+def print_statistics(label, ids):
     
-    return sections, tot_dev_eui
+    res, confirmed, unconfirmed, num_of_deveui = ids.get_statistics()
+
+    num_of_packets = res["num_of_packets"]
+    current_section = res["current_section"]
+    num_of_err = res["num_of_err"]
+    num_of_joins = current_section - 1
+    num_of_data = num_of_packets - num_of_joins
+
+
+    print(30 * "=")
+    print()
+    print(label.upper())
+
+    print()
+
+    print("Num. of overall packets: " + str(num_of_packets))
+    print("Num. of Data packets: " + str(num_of_data))
+    print("Num. of Join Requests: " + str(num_of_joins))
+    print("Num. of sections: " + str(current_section))
+    print("Num. of devices: " + str(confirmed))
+    print("Num. of unique devices: " + str(num_of_deveui))
+    print("Len. of unconfirmed pattern list: " + str(unconfirmed))
+    print("Num. of errors: " + str(num_of_err))
+    print()
+    print(30 * "=" + "\n\n")
 
 
 def main():
@@ -36,14 +46,14 @@ def main():
     
 
     # accendiamo il nostro IDS
-    ids = IDS(label) 
+    ids = IDS() 
 
     # IDS in ascolto
     for p in packets:
         ids.read_packet(p)
         
     # conclusa l'analisi, stampiamo alcune statistiche generali
-    ids.statistics()     
+    print_statistics(label, ids)     
 
 
 if __name__ == "__main__":

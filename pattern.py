@@ -18,8 +18,6 @@ class Pattern:
 
     def update(self, timestamp):
 
-        len_before = len(self.segments)
-
         self.n += 1
 
         old_t = self.timestamp 
@@ -31,22 +29,30 @@ class Pattern:
         for s in self.segments:
             if abs(s.mean - x) < 4:
                 found = True
-                s.values.append(x)
-                s.n += 1
-                old_m = s.mean
-                s.mean = old_m + ((x - old_m) / s.n) 
+                s.update(x) 
         
         if found:
             self.verified = True
 
         if not found:
             # new segment
-            segment = Segment(x)
+            index = len(self.segments) - 1
+            segment = Segment(x, index)
             self.segments.append(segment)
             self.verified = False
 
 
-    def equals(self, pattern2):
+    def equals(self, pattern):
+
+        segments = pattern.segments
+        for s in segments:
+            if not s.belongs_to(self):
+                return False
+        return True
+                            
+
+    # old equals function, used in mono-segment patterns
+    def old_equals(self, pattern2):
 
         # Kolmogorov–Smirnov test
 
