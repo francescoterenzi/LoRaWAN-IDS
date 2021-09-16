@@ -2,6 +2,8 @@ from os import scandir
 import pickle
 import time
 from ids import IDS
+from ids_v2 import IDS_V2
+from tqdm import tqdm
 
 
 def print_statistics(label, ids):
@@ -43,21 +45,30 @@ def main():
     #packets = pickle.load(open("synth_traffic.packets.devaddr", "rb"))
     #packets =  pickle.load(open("torrecanavese.packets.devaddr", "rb"))
     packets =  pickle.load(open("synth_traffic.pickle", "rb"))
-    
 
-    # accendiamo il nostro IDS
-    ids = IDS() 
+
+    # accendiamo il nostro IDS V1
+    ids = IDS()
 
     # IDS in ascolto
-    for p in packets:
-        ids.read_packet(p)
+    start_time = time.time()
+    for i in tqdm(range(len(packets))):
+        ids.read_packet(packets[i])
+    print("--- %s seconds ---\n\n" % (time.time() - start_time))
+    
+
+    # accendiamo il nostro IDS V2
+    ids_v2 = IDS_V2() 
+    
+    # IDS in ascolto
+    start_time = time.time()
+    for i in tqdm(range(len(packets))):
+        ids_v2.read_packet(packets[i])
+    print("--- %s seconds ---\n\n" % (time.time() - start_time))
         
     # conclusa l'analisi, stampiamo alcune statistiche generali
-    print_statistics(label, ids)     
+    #print_statistics(label, ids)     
 
 
 if __name__ == "__main__":
-
-    start_time = time.time()
     main()
-    print("--- %s seconds ---\n\n" % (time.time() - start_time))

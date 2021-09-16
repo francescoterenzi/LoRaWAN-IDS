@@ -8,14 +8,14 @@ from tqdm import tqdm
 
 seed(42)  #reproducible
 
-N = 150             # number of devices
+N = 500             # number of devices
 S = 365*24*3600     # number of seconds to generate packets
 Tmin = int(10)           # minimum interarrival time, in seconds
 Tmax = int(23*3600)       # maximum interarrival time, in seconds
 Emin = 0.01            # minimum absolute error in the interarrival time, in seconds
 Emax = 2           # maximum absolute error in the interarrival time, in seconds
 P = 10              # maximum length of a pattern
-Jmin = 10           # minimum number of messages before a join
+Jmin = 20           # minimum number of messages before a join
 Jmax = 300          # maximum number of messages before a join
 
 

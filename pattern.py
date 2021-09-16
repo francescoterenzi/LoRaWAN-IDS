@@ -44,6 +44,18 @@ class Pattern:
 
     def equals(self, pattern):
 
+        if len(pattern.segments) != len(self.segments):
+            return False
+
+        segments = pattern.segments
+        for s in segments:
+            if not s.belongs_to(self):
+                return False
+        
+        return True
+
+
+    def contains(self, pattern):
         segments = pattern.segments
         for s in segments:
             if not s.belongs_to(self):
