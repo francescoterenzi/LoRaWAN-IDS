@@ -1,6 +1,7 @@
-from debug import debug_duplicate
+from debug import Debug
 from time import sleep
 from pattern import Pattern
+from segment import Segment
 
 class IDS_V2:
 
@@ -18,6 +19,8 @@ class IDS_V2:
         self.to_analyze = {}
         self.removed = []
         self.current = []
+
+        self.d = Debug("ids_v2.txt")
 
 
     def read_packet(self, p):
@@ -51,41 +54,57 @@ class IDS_V2:
 
 
     def __post_join(self, p):
-        
-        '''
-        f = open("result.txt", "a")
-        tot_len = len(self.verified) + len(self.not_verified) + len(self.unconfirmed) + len(self.quarantine)
-        f.write("len p: " + str(len(self.patterns)) + \
-            " len v: " + str(len(self.verified)) + \
-                " len n_v: " + str(len(self.not_verified)) + \
-                    " len u: " + str(len(self.unconfirmed)) + \
-                        " len q: " + str(len(self.quarantine)) +
-                        " tot len (v + n_v + u + q) " + str(tot_len) + "\n")
-        f.close()
-        '''
 
         devaddr = p.dev_addr
 
         if devaddr not in self.current:
             self.current.append(devaddr)
 
-        if devaddr in self.verified:
+        if devaddr in self.unconfirmed:
             self.patterns[devaddr].update(p.t)
+            pattern1 = self.patterns[devaddr]
 
-        elif devaddr in self.not_verified:
-            self.patterns[devaddr].update(p.t)
-            if self.patterns[devaddr].verified:
-                self.verified.append(devaddr)
-                self.not_verified.remove(devaddr)
+            for a in self.to_analyze[devaddr]:
+
+                if a in self.removed and a not in self.current:
+                    self.to_analyze[devaddr].remove(a)
+                
+                else:
+                    pattern2 = self.patterns[a]
+
+                    if pattern2.contains(pattern1):
+                        if len(pattern1.segments) == len(pattern2.segments):
+                            self.unconfirmed.remove(devaddr)
+                            self.quarantine[devaddr] = a
+                            return
+                    else:
+                        self.to_analyze[devaddr].remove(a)
+                
+            if len(self.to_analyze[devaddr]) == 0:
+                # new conf dev
+                self.d.new_dev(devaddr)
+
+                self.unconfirmed.remove(devaddr)
+                if self.patterns[devaddr].verified:
+                    self.verified.append(devaddr)
+                else:
+                    self.not_verified.append(devaddr)
+
 
         elif devaddr in self.quarantine:
-            self.patterns[devaddr].update(p.t)
-            suspect = self.quarantine[devaddr]
+            #self.patterns[devaddr].update(p.t)
             
-            pattern1 = self.patterns[devaddr]
-            pattern2 = self.patterns[suspect]
+            x = p.t - self.patterns[devaddr].timestamp
 
-            if pattern1.equals(pattern2):
+            self.patterns[devaddr].update(p.t)
+            segment = Segment(x, 0)
+
+            suspect = self.quarantine[devaddr]
+            pattern = self.patterns[suspect]
+
+            if segment.belongs_to(pattern):
+                self.d.duplicate(devaddr, suspect)
+
                 self.patterns.pop(suspect)
                 self.verified.remove(suspect)
                 self.removed.append(suspect)      
@@ -94,40 +113,22 @@ class IDS_V2:
                 self.verified.append(devaddr)
             else:
                 self.not_verified.append(devaddr)
+            
             self.quarantine.pop(devaddr)
 
-        elif devaddr in self.unconfirmed:
+        elif devaddr in self.not_verified:
             self.patterns[devaddr].update(p.t)
-            
-            l = list(filter(lambda x: x not in self.removed, self.to_analyze[devaddr]))
-            self.to_analyze[devaddr] = l
+            if self.patterns[devaddr].verified:
+                self.verified.append(devaddr)
+                self.not_verified.remove(devaddr)
+        
+        elif devaddr in self.verified:
+            self.patterns[devaddr].update(p.t)
 
-            to_remove = []
-            pattern1 = self.patterns[devaddr]
-            for a in self.to_analyze[devaddr]:
-                
-                pattern2 = self.patterns[a]
-
-                if pattern1.equals(pattern2):
-                    self.unconfirmed.remove(devaddr)
-                    self.quarantine[devaddr] = a
-                    return
-                elif pattern2.contains(pattern1):
-                    pass
-                else:
-                    self.to_analyze[devaddr].remove(a)
-            
-            if len(self.to_analyze[devaddr]) == 0:
-                # new conf dev
-                self.unconfirmed.remove(devaddr)
-                if self.patterns[devaddr].verified:
-                    self.verified.append(devaddr)
-                else:
-                    self.not_verified.append(devaddr)
         
         else:
             # new unconf dev
             self.patterns[devaddr] = Pattern(p.t)
             self.unconfirmed.append(devaddr)
 
-            self.to_analyze[devaddr] = [x for x in self.verified if x not in self.current]
+            self.to_analyze[devaddr] = self.verified

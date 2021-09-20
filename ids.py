@@ -1,4 +1,4 @@
-from debug import debug_duplicate, debug_new_dev
+from debug import Debug
 from pattern import Pattern
 from segment import Segment
 
@@ -6,44 +6,33 @@ class IDS:
 
     def __init__(self):
 
+        self.d = Debug("ids.txt")
+
         self.confirmed = {}
         self.unconfirmed = {}
         self.quarantine = {}
-
         self.to_analyze = {}
 
-        self.statistics = {
-            "current_section" : 1,
-            "num_of_packets" : 0,
-            "last_section_packets" : 0,
-            "current_section_packets" : 0,
-            "last_timestamp" : 0,
-            "num_of_err" : 0
-        }
+        self.current_section = 1
 
 
     def read_packet(self, p):
 
-        self.statistics["num_of_packets"] += 1
+        #self.statistics["num_of_packets"] += 1
 
         if (p.mtype == "Join Request"):
-            self.statistics["current_section"] += 1
-            self.statistics["last_section_packets"] = self.statistics["current_section_packets"]
-            self.statistics["current_section_packets"] = 0
+            self.current_section += 1
+            #self.statistics["last_section_packets"] = self.statistics["current_section_packets"]
+            #self.statistics["current_section_packets"] = 0
 
         else:
-            self.statistics["current_section_packets"] += 1
-            self.statistics["last_timestamp"] = p.t
+            #self.statistics["current_section_packets"] += 1
+            #self.statistics["last_timestamp"] = p.t
 
-            if self.statistics["current_section"] == 1:
+            if self.current_section == 1:
                 self.__pre_join(p)
             else:
                 self.__post_join(p)
-
-
-    def get_statistics(self):
-        num_of_deveui = len(set( [elem.split("_")[0] for elem in self.confirmed] ))
-        return self.statistics, len(self.confirmed), len(self.unconfirmed), num_of_deveui
 
 
     def __pre_join(self, p):
@@ -52,7 +41,6 @@ class IDS:
 
         if devaddr in self.confirmed:
             self.confirmed[devaddr].update(p.t)
-         
         else:
             self.confirmed[devaddr] = Pattern(p.t)
 
@@ -78,6 +66,7 @@ class IDS:
 
                     x = Segment(p.t - timestamp, 0)
                     if x.belongs_to(pattern):
+                        self.d.duplicate(devaddr, elem)
                         self.confirmed[devaddr] = self.unconfirmed[devaddr]
                         self.confirmed.pop(elem)
                         self.__clean_undefined(elem)
@@ -110,7 +99,8 @@ class IDS:
                                 else:
                                     self.to_analyze[devaddr].remove(e)
 
-                    if len(self.to_analyze[devaddr]) == 0:        
+                    if len(self.to_analyze[devaddr]) == 0:   
+                        self.d.new_dev(devaddr)     
                         self.confirmed[devaddr] = unconf_pattern
 
                         self.unconfirmed.pop(devaddr)

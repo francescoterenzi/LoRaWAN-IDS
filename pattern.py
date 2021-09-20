@@ -13,7 +13,7 @@ class Pattern:
         self.n = 1
         self.verified = False
         self.segments = []
-        self.alpha = 0.001
+        #self.alpha = 0.001
 
 
     def update(self, timestamp):

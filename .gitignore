@@ -1,6 +1,6 @@
 *.devaddr
 *.pickle
-*.result.txt
+*ids.txt
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
