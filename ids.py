@@ -6,29 +6,22 @@ class IDS:
 
     def __init__(self):
 
-        self.d = Debug("ids.txt")
+        self.debug = Debug("ids.txt")
 
         self.confirmed = {}
         self.unconfirmed = {}
         self.quarantine = {}
-        self.to_analyze = {}
 
+        self.to_analyze = {}
         self.current_section = 1
 
 
     def read_packet(self, p):
 
-        #self.statistics["num_of_packets"] += 1
-
         if (p.mtype == "Join Request"):
             self.current_section += 1
-            #self.statistics["last_section_packets"] = self.statistics["current_section_packets"]
-            #self.statistics["current_section_packets"] = 0
 
         else:
-            #self.statistics["current_section_packets"] += 1
-            #self.statistics["last_timestamp"] = p.t
-
             if self.current_section == 1:
                 self.__pre_join(p)
             else:
@@ -60,22 +53,21 @@ class IDS:
                 
                 if devaddr in self.quarantine:
 
-                    elem = self.quarantine[devaddr][0]
+                    suspect = self.quarantine[devaddr][0]
                     timestamp = self.quarantine[devaddr][1]
-                    pattern = self.confirmed[elem]
+                    pattern = self.confirmed[suspect]
 
                     x = Segment(p.t - timestamp, 0)
                     if x.belongs_to(pattern):
-                        self.d.duplicate(devaddr, elem)
+                        self.debug.duplicate(devaddr, suspect)
                         self.confirmed[devaddr] = self.unconfirmed[devaddr]
-                        self.confirmed.pop(elem)
-                        self.__clean_undefined(elem)
+                        self.confirmed.pop(suspect)
+                        self.__clean_undefined(suspect)
 
                     else:
-                        new_pattern = self.unconfirmed[devaddr][elem]
+                        new_pattern = self.unconfirmed[devaddr][suspect]
                         new_pattern.verified = True
                         self.confirmed[devaddr] = new_pattern
-                        self.__check_quar_new_dev(devaddr)
 
                     self.unconfirmed.pop(devaddr)
                     self.quarantine.pop(devaddr)
@@ -83,7 +75,6 @@ class IDS:
 
                 else:
                     to_analyze = self.to_analyze[devaddr]
-
                     unconf_pattern = self.unconfirmed[devaddr]
 
                     for e in to_analyze:
@@ -100,9 +91,8 @@ class IDS:
                                     self.to_analyze[devaddr].remove(e)
 
                     if len(self.to_analyze[devaddr]) == 0:   
-                        self.d.new_dev(devaddr)     
+                        self.debug.new_dev(devaddr)     
                         self.confirmed[devaddr] = unconf_pattern
-
                         self.unconfirmed.pop(devaddr)
                         self.to_analyze.pop(devaddr)
 

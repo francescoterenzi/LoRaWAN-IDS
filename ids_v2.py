@@ -1,36 +1,28 @@
 from debug import Debug
-from time import sleep
 from pattern import Pattern
 from segment import Segment
 
 class IDS_V2:
 
     def __init__(self):
-        
-        self.section = 1
-        
-        self.patterns = {}
 
-        self.verified = []
-        self.not_verified = []
-        self.unconfirmed = []
+        self.debug = Debug("ids_v2.txt")
+
+        self.confirmed = {}
+        self.unconfirmed = {}
         self.quarantine = {}
 
         self.to_analyze = {}
-        self.removed = []
-        self.current = []
-
-        self.d = Debug("ids_v2.txt")
+        self.current_section = 1
 
 
     def read_packet(self, p):
 
         if (p.mtype == "Join Request"):
-            self.section += 1
-            self.current.clear()
+            self.current_section += 1
 
         else:
-            if self.section == 1:
+            if self.current_section == 1:
                 self.__pre_join(p)
             else:
                 self.__post_join(p)
@@ -40,95 +32,89 @@ class IDS_V2:
 
         devaddr = p.dev_addr
 
-        if devaddr in self.patterns:
-            # already seen
-            self.patterns[devaddr].update(p.t)
-            if devaddr in self.not_verified and self.patterns[devaddr].verified:
-                self.verified.append(devaddr)
-                self.not_verified.remove(devaddr)
-         
+        if devaddr in self.confirmed:
+            self.confirmed[devaddr].update(p.t)
         else:
-            # new dev
-            self.patterns[devaddr] = Pattern(p.t)
-            self.not_verified.append(devaddr)
+            self.confirmed[devaddr] = Pattern(p.t)
 
 
     def __post_join(self, p):
 
-        devaddr = p.dev_addr
+        devaddr = p.dev_addr  
 
-        if devaddr not in self.current:
-            self.current.append(devaddr)
+        if devaddr in self.confirmed:
+            self.confirmed[devaddr].update(p.t)
+            self.__clean(devaddr)
 
-        if devaddr in self.unconfirmed:
-            self.patterns[devaddr].update(p.t)
-            pattern1 = self.patterns[devaddr]
-
-            for a in self.to_analyze[devaddr]:
-
-                if a in self.removed and a not in self.current:
-                    self.to_analyze[devaddr].remove(a)
-                
-                else:
-                    pattern2 = self.patterns[a]
-
-                    if pattern2.contains(pattern1):
-                        if len(pattern1.segments) == len(pattern2.segments):
-                            self.unconfirmed.remove(devaddr)
-                            self.quarantine[devaddr] = a
-                            return
-                    else:
-                        self.to_analyze[devaddr].remove(a)
-                
-            if len(self.to_analyze[devaddr]) == 0:
-                # new conf dev
-                self.d.new_dev(devaddr)
-
-                self.unconfirmed.remove(devaddr)
-                if self.patterns[devaddr].verified:
-                    self.verified.append(devaddr)
-                else:
-                    self.not_verified.append(devaddr)
-
-
-        elif devaddr in self.quarantine:
-            #self.patterns[devaddr].update(p.t)
-            
-            x = p.t - self.patterns[devaddr].timestamp
-
-            self.patterns[devaddr].update(p.t)
-            segment = Segment(x, 0)
-
-            suspect = self.quarantine[devaddr]
-            pattern = self.patterns[suspect]
-
-            if segment.belongs_to(pattern):
-                self.d.duplicate(devaddr, suspect)
-
-                self.patterns.pop(suspect)
-                self.verified.remove(suspect)
-                self.removed.append(suspect)      
-            
-            if self.patterns[devaddr].verified:
-                self.verified.append(devaddr)
-            else:
-                self.not_verified.append(devaddr)
-            
-            self.quarantine.pop(devaddr)
-
-        elif devaddr in self.not_verified:
-            self.patterns[devaddr].update(p.t)
-            if self.patterns[devaddr].verified:
-                self.verified.append(devaddr)
-                self.not_verified.remove(devaddr)
-        
-        elif devaddr in self.verified:
-            self.patterns[devaddr].update(p.t)
-
-        
         else:
-            # new unconf dev
-            self.patterns[devaddr] = Pattern(p.t)
-            self.unconfirmed.append(devaddr)
+            if devaddr in self.unconfirmed:
+                self.unconfirmed[devaddr].update(p.t)
+                
+                if devaddr in self.quarantine:
+                    self.__quarantine(devaddr, p.t)
 
-            self.to_analyze[devaddr] = self.verified
+                else:
+                    to_analyze = self.to_analyze[devaddr]
+                    unconf_pattern = self.unconfirmed[devaddr]
+
+
+                    verified = list(filter(lambda x: self.confirmed[x].verified, to_analyze))
+
+                    for v in verified:
+                        conf_pattern = self.confirmed[v]        
+    
+                        if len(unconf_pattern.segments) == len(conf_pattern.segments):
+                            pattern_matching = conf_pattern.contains(unconf_pattern)
+                        
+                            if pattern_matching:
+                                self.quarantine[devaddr] = (v, p.t)      
+                            else:
+                                self.to_analyze[devaddr].remove(v)
+
+                    if len(self.to_analyze[devaddr]) == 0:
+                        self.__new_device(devaddr, unconf_pattern)   
+
+            else:
+                self.unconfirmed[devaddr] = Pattern(p.t)
+                self.to_analyze[devaddr] = list(self.confirmed.keys())
+
+
+    def __quarantine(self, devaddr, p_timestamp):
+        suspect = self.quarantine[devaddr][0]
+        timestamp = self.quarantine[devaddr][1]
+        pattern = self.confirmed[suspect]
+
+        x = Segment(p_timestamp - timestamp, 0)
+        if x.belongs_to(pattern):
+            self.debug.duplicate(devaddr, suspect)
+            self.confirmed[devaddr] = self.unconfirmed[devaddr]
+            self.confirmed.pop(suspect)
+            self.__clean(suspect)
+
+        else:
+            new_pattern = self.unconfirmed[devaddr][suspect]
+            self.confirmed[devaddr] = new_pattern
+
+        self.unconfirmed.pop(devaddr)
+        self.quarantine.pop(devaddr)
+        self.to_analyze.pop(devaddr)
+
+
+    def __new_device(self, devaddr, unconf_pattern):
+        self.debug.new_dev(devaddr)     
+        self.confirmed[devaddr] = unconf_pattern
+        self.unconfirmed.pop(devaddr)
+        self.to_analyze.pop(devaddr)
+
+
+
+    def __clean(self, devaddr):
+        to_analyze = self.to_analyze.copy()
+
+        for elem in to_analyze:
+            if devaddr in to_analyze[elem]:
+                self.to_analyze[elem].remove(devaddr)
+
+# n devices
+# n of join request
+# n of packets
