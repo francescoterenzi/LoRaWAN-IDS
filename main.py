@@ -18,18 +18,6 @@ def main():
     # loading the dataset
     packets =  pickle.load(open("synth_traffic.pickle", "rb"))
 
-    '''
-    # new instance of our IDS
-    ids = IDS()
-
-    # IDS on listening
-    start_time = time.time()
-    print("Analyzing the dataset:")
-    for i in tqdm(range(len(packets))):
-        ids.read_packet(packets[i])
-    print("--- %s seconds ---\n\n" % (time.time() - start_time))   
-    '''
-
     # new instance of our IDS
     ids_v2 = IDS_V2()
 
@@ -38,7 +26,17 @@ def main():
     print("Analyzing the dataset:")
     for i in tqdm(range(len(packets))):
         ids_v2.read_packet(packets[i])
-    print("--- %s seconds ---\n\n" % (time.time() - start_time))   
+    print("--- %s seconds ---\n\n" % (time.time() - start_time))
+
+    # qui dobbiamo confontare i risultati del nostro IDS con quelli reali
+    # e mostrare la % di DevAddress beccati
+
+    # qui dobbiamo modifiare il dataset
+
+    # qui dobbiamo far ripartire il nostro IDS
+
+    # qui dobbiamo confrontare i risultati del nostro IDS con quelli reali
+    # e mostrare che la % di DevAddress beccati cala drasticamente   
 
 
 if __name__ == "__main__":
