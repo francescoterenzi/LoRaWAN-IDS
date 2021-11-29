@@ -1,9 +1,9 @@
 from os import scandir
 import pickle
+from pivot import PIVOT
 from synth_traffic import generate_synt_traffic
 import time
-from ids import IDS
-from ids_v2 import IDS_V2
+from pivot import PIVOT
 from tqdm import tqdm
 
 N = 150     # num of devices
@@ -19,13 +19,13 @@ def main():
     packets =  pickle.load(open("synth_traffic.pickle", "rb"))
 
     # new instance of our IDS
-    ids_v2 = IDS_V2()
+    pivot = PIVOT()
 
     # IDS on listening
     start_time = time.time()
     print("Analyzing the dataset:")
     for i in tqdm(range(len(packets))):
-        ids_v2.read_packet(packets[i])
+        pivot.read_packet(packets[i])
     print("--- %s seconds ---\n\n" % (time.time() - start_time))
 
     # qui dobbiamo confontare i risultati del nostro IDS con quelli reali

@@ -2,11 +2,11 @@ from debug import Debug
 from pattern import Pattern
 from segment import Segment
 
-class IDS_V2:
+class PIVOT:
 
     def __init__(self):
 
-        self.debug = Debug("ids_v2.txt")
+        self.debug = Debug("pivot.txt")
 
         self.confirmed = {}
         self.unconfirmed = {}
@@ -114,7 +114,3 @@ class IDS_V2:
         for elem in to_analyze:
             if devaddr in to_analyze[elem]:
                 self.to_analyze[elem].remove(devaddr)
-
-# n devices
-# n of join request
-# n of packets

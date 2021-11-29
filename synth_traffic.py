@@ -24,7 +24,6 @@ def generate_synt_traffic(N):
 
     assert(P < Jmin)
 
-
     packets_tot = []
     for dev_i in tqdm(range(N)):
         # generate random pattern for the current device
@@ -91,6 +90,3 @@ def generate_synt_traffic(N):
     # sort all packets in time and write on disk
     packets_tot.sort(key=lambda p: p.t)
     pickle.dump(packets_tot, open("synth_traffic.pickle", "wb"))
-
-
-
