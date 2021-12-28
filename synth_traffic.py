@@ -2,23 +2,36 @@
 Generates synthetic traffic of multiple devices following random patterns
 """
 import pickle
-from random import random, randint, seed
+from random import random, randint, seed, choices
 from classes import Packet
 from tqdm import tqdm
+import numpy as np
+from matplotlib import pyplot as plt
 
 
 seed(42)  #reproducible
 
 #N = 300             # number of devices
-S = 365*24*3600     # number of seconds to generate packets
-Tmin = int(10)           # minimum interarrival time, in seconds
-Tmax = int(23*3600)       # maximum interarrival time, in seconds
+S = 50*24*3600     # number of seconds to generate packets
 Emin = 0.01            # minimum absolute error in the interarrival time, in seconds
 Emax = 2           # maximum absolute error in the interarrival time, in seconds
-P = 10              # maximum length of a pattern
+P = 3              # maximum length of a pattern
 Jmin = 20           # minimum number of messages before a join
 Jmax = 300          # maximum number of messages before a join
+USE_LOED_DISTR = True       # use interarrival time distribution from LoED dataset
+show_plot = False
 
+if USE_LOED_DISTR:
+    _cdf_X, _cdf_Y = pickle.load(open("LoED/interarrivals_X_cdf.pickle", "rb"))
+    pdf_X, pdf_Y = [], []
+    prev_y = _cdf_Y[0]
+    for x, y in zip(_cdf_X[1:], _cdf_Y[1:]):
+        pdf_X.append(x)
+        pdf_Y.append(y - prev_y)
+        prev_y = y
+else:
+    Tmin = int(10)           # minimum interarrival time, in seconds
+    Tmax = int(12*3600)       # maximum interarrival time, in seconds
 
 def generate_synt_traffic(N):
 
@@ -31,7 +44,10 @@ def generate_synt_traffic(N):
     for dev_i in tqdm(range(N)):
         # generate random pattern for the current device
         pattern_len = randint(1, P)
-        pattern = [randint(Tmin, Tmax) for _ in range(pattern_len)]
+        if USE_LOED_DISTR:
+            pattern = choices(pdf_X, pdf_Y, k=pattern_len)
+        else:
+            pattern = [randint(Tmin, Tmax) for _ in range(pattern_len)]
 
         # generate first packet of the current device
         # let the first packet of a device be at a random time between 0 and a fraction of S
