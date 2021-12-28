@@ -24,6 +24,9 @@ def generate_synt_traffic(N):
 
     assert(P < Jmin)
 
+    cnt_datapckt = 0
+    cnt_joins = 0
+
     packets_tot = []
     for dev_i in tqdm(range(N)):
         # generate random pattern for the current device
@@ -56,6 +59,7 @@ def generate_synt_traffic(N):
             t = next_packet_t
 
         # add join messages for the current device
+        cnt_datapckt += len(packets_dev)
         joins_dev = []
         i = randint(Jmin, Jmax)
         while i < len(packets_dev)-1:
@@ -66,6 +70,7 @@ def generate_synt_traffic(N):
             assert(t1 < join_msg_t < t2)
             join_packet = Packet(join_msg_t, str(dev_i), "not_available", None, None, -1, "Join Request")
             joins_dev.append(join_packet)
+            cnt_joins += 1
             i += randint(Jmin, Jmax)
 
         # merge packets with joins
@@ -90,3 +95,13 @@ def generate_synt_traffic(N):
     # sort all packets in time and write on disk
     packets_tot.sort(key=lambda p: p.t)
     pickle.dump(packets_tot, open("synth_traffic.pickle", "wb"))
+
+    # print stats
+    print(N, "total devices")
+    print("Generated", cnt_datapckt, "data packets")
+    print("Generated", cnt_joins, "join packets")
+    print("Generated", cnt_datapckt+cnt_joins, "total packets")
+
+
+if __name__ == "__main__":
+    generate_synt_traffic(400, 0.005)
