@@ -1,5 +1,5 @@
 *.devaddr
-synth_traffic.pickle
+synth_traffic*.pickle
 *ids.txt
 .vscode/*
 !.vscode/settings.json

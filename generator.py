@@ -19,9 +19,9 @@ P = 3              # maximum length of a pattern
 Jmin = 20           # minimum number of messages before a join
 Jmax = 300          # maximum number of messages before a join
 USE_LOED_DISTR = True       # use interarrival time distribution from LoED dataset
-show_plot = False
 
 if USE_LOED_DISTR:
+    # Data for interarrival distribution extracted from LoED dataset
     _cdf_X, _cdf_Y = pickle.load(open("LoED/interarrivals_X_cdf.pickle", "rb"))
     pdf_X, pdf_Y = [], []
     prev_y = _cdf_Y[0]
@@ -34,26 +34,8 @@ else:
     Tmax = int(12*3600)       # maximum interarrival time, in seconds
 
 
-def exp_generator(exp_rate):
-    while True:
-        yield from np.random.exponential(1/exp_rate, size=(10**5,))
-
-
-def generate_synt_traffic(N, exp_rate=0):
-    """
-    If `exp_rate` > 0, then the interarrival times follow an exponential distribution
-    having as rate `exp_rate`
-    """
-
+def generate_synt_traffic(N):
     assert(P < Jmin)
-    use_exp_delay = exp_rate > 0
-
-    if use_exp_delay:
-        # total delay of all the packets, in seconds
-        exp_total_delay = 0
-        # number of exponential arrival not used. An exponential arrival is not used
-        # if it arrives before the original interarrival time of the packet
-        exp_total_notused = 0
 
     cnt_datapckt = 0
     cnt_joins = 0
@@ -112,36 +94,6 @@ def generate_synt_traffic(N, exp_rate=0):
         # sort packets in time
         packets_dev.sort(key=lambda p: p.t)
 
-        # if using a random exponential delay, delay the time of arrival of the 
-        # generated packets such that the new interarrival times follow an exp. distr.
-        if use_exp_delay:
-            if show_plot:
-                plt.figure(1)
-                plt.title("Interarrival times - Before exp delay")
-                plt.hist([packets_dev[i].t-packets_dev[i-1].t for i in range(1, len(packets_dev))], bins=25)
-
-            # init exponential interarrival times generator
-            exp_gen = exp_generator(exp_rate)
-
-            # modify packet arrival times
-            t_exp = packets_dev[0].t
-            for p in packets_dev[1:]:
-                t_exp += next(exp_gen)
-                while p.t > t_exp:
-                    # exponential arrival not used, it is before the original interarrival
-                    exp_total_notused += 1
-                    t_exp += next(exp_gen)
-                # update stat
-                exp_total_delay += t_exp - p.t
-                # modify packet time
-                p.t = t_exp
-
-            if show_plot:
-                plt.figure(2)
-                plt.title("Interarrival times - After exp delay")
-                plt.hist([packets_dev[i].t-packets_dev[i-1].t for i in range(1, len(packets_dev))], bins=25)
-                plt.show()
-
         # modify device addresses after a join
         dev_addr_curr = 0
         for packet in packets_dev:
@@ -166,13 +118,6 @@ def generate_synt_traffic(N, exp_rate=0):
     print("Generated", cnt_joins, "join packets")
     print("Generated", cnt_datapckt+cnt_joins, "total packets")
 
-    if use_exp_delay:
-        print("--- Exponential delay stats:")
-        print(f"---    Average packet delay per packet: {exp_total_delay/len(packets_tot):.2f} (s)")
-        print("---    Average exponential arrival not used per packet:", exp_total_notused/len(packets_tot))
-    else:
-        print("--- Exponential delay not used")
-
 
 if __name__ == "__main__":
-    generate_synt_traffic(30, 0.03)
+    generate_synt_traffic(30)
