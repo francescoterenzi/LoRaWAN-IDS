@@ -4,9 +4,11 @@ from segment import Segment
 
 class PIVOT:
 
-    def __init__(self):
+    def __init__(self, debug=False):
 
-        self.debug = Debug("pivot.txt")
+        self.debug = debug
+        if debug:
+            self.debug = Debug("pivot.txt")
 
         self.confirmed = {}
         self.unconfirmed = {}
@@ -25,7 +27,7 @@ class PIVOT:
             if self.current_section == 1:
                 self.__pre_join(p)
             else:
-                self.__post_join(p)
+                self.__main(p)
 
 
     def __pre_join(self, p):
@@ -38,7 +40,7 @@ class PIVOT:
             self.confirmed[devaddr] = Pattern(p.t)
 
 
-    def __post_join(self, p):
+    def __main(self, p):
 
         devaddr = p.dev_addr  
 
@@ -86,7 +88,8 @@ class PIVOT:
 
         x = Segment(p_timestamp - timestamp, 0)
         if x.belongs_to(pattern):
-            self.debug.duplicate(devaddr, suspect)
+            if self.debug:
+                self.debug.duplicate(devaddr, suspect)
             self.confirmed[devaddr] = self.unconfirmed[devaddr]
             self.confirmed.pop(suspect)
             self.__clean(suspect)
@@ -101,7 +104,8 @@ class PIVOT:
 
 
     def __new_device(self, devaddr, unconf_pattern):
-        self.debug.new_dev(devaddr)     
+        if self.debug:
+            self.debug.new_dev(devaddr)     
         self.confirmed[devaddr] = unconf_pattern
         self.unconfirmed.pop(devaddr)
         self.to_analyze.pop(devaddr)
