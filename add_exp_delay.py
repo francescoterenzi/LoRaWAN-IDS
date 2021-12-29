@@ -66,7 +66,6 @@ def add_exp_delay(packets, exp_rate):
 if __name__ == '__main__':
     # Load packets
     packets = pickle.load(open("synth_traffic.pickle", "rb"))
-    packets = pickle.load(open(f"synth_traffic_delay_{EXP_RATE}.pickle", "rb"))
 
     # Add exp delay
     packets_delay = add_exp_delay(packets, EXP_RATE)
