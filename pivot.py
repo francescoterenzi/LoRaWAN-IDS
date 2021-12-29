@@ -1,14 +1,12 @@
-from debug import Debug
+#from debug import Debug
 from pattern import Pattern
 from segment import Segment
 
 class PIVOT:
 
-    def __init__(self, debug=False):
+    def __init__(self):
 
-        self.debug = debug
-        if debug:
-            self.debug = Debug("pivot.txt")
+        #self.debug = Debug("ids.txt")
 
         self.confirmed = {}
         self.unconfirmed = {}
@@ -16,6 +14,7 @@ class PIVOT:
 
         self.to_analyze = {}
         self.current_section = 1
+        self.detected = 0
 
 
     def read_packet(self, p):
@@ -46,6 +45,7 @@ class PIVOT:
 
         if devaddr in self.confirmed:
             self.confirmed[devaddr].update(p.t)
+
             self.__clean(devaddr)
 
         else:
@@ -59,27 +59,33 @@ class PIVOT:
                     to_analyze = self.to_analyze[devaddr]
                     unconf_pattern = self.unconfirmed[devaddr]
 
+                    for e in to_analyze:
+                        conf_pattern = self.confirmed[e]        
 
-                    verified = list(filter(lambda x: self.confirmed[x].verified, to_analyze))
+                        if conf_pattern.verified:
+                            
+                            if len(unconf_pattern.segments) == len(conf_pattern.segments):
+                                pattern_matching = conf_pattern.equals(unconf_pattern)
+                            
+                                if pattern_matching:
+                                    self.quarantine[devaddr] = (e, p.t)      
+                                else:
+                                    self.to_analyze[devaddr].remove(e)
 
-                    for v in verified:
-                        conf_pattern = self.confirmed[v]        
-    
-                        if len(unconf_pattern.segments) == len(conf_pattern.segments):
-                            pattern_matching = conf_pattern.contains(unconf_pattern)
-                        
-                            if pattern_matching:
-                                self.quarantine[devaddr] = (v, p.t)      
-                            else:
-                                self.to_analyze[devaddr].remove(v)
+                    if len(self.to_analyze[devaddr]) == 0:   
+                        self.__new_device(devaddr, unconf_pattern)
 
-                    if len(self.to_analyze[devaddr]) == 0:
-                        self.__new_device(devaddr, unconf_pattern)   
 
             else:
+                # it's a new devaddr
                 self.unconfirmed[devaddr] = Pattern(p.t)
-                self.to_analyze[devaddr] = list(self.confirmed.keys())
+                self.to_analyze[devaddr] = [elem for elem in self.confirmed]
 
+    def __new_device(self, devaddr, unconf_pattern):
+        #self.debug.new_dev(devaddr)     
+        self.confirmed[devaddr] = unconf_pattern
+        self.unconfirmed.pop(devaddr)
+        self.to_analyze.pop(devaddr)
 
     def __quarantine(self, devaddr, p_timestamp):
         suspect = self.quarantine[devaddr][0]
@@ -88,29 +94,20 @@ class PIVOT:
 
         x = Segment(p_timestamp - timestamp, 0)
         if x.belongs_to(pattern):
-            if self.debug:
-                self.debug.duplicate(devaddr, suspect)
+            #self.debug.duplicate(devaddr, suspect)
+            self.detected += 1
             self.confirmed[devaddr] = self.unconfirmed[devaddr]
             self.confirmed.pop(suspect)
             self.__clean(suspect)
 
         else:
             new_pattern = self.unconfirmed[devaddr][suspect]
+            new_pattern.verified = True
             self.confirmed[devaddr] = new_pattern
 
         self.unconfirmed.pop(devaddr)
         self.quarantine.pop(devaddr)
         self.to_analyze.pop(devaddr)
-
-
-    def __new_device(self, devaddr, unconf_pattern):
-        if self.debug:
-            self.debug.new_dev(devaddr)     
-        self.confirmed[devaddr] = unconf_pattern
-        self.unconfirmed.pop(devaddr)
-        self.to_analyze.pop(devaddr)
-
-
 
     def __clean(self, devaddr):
         to_analyze = self.to_analyze.copy()
@@ -118,3 +115,19 @@ class PIVOT:
         for elem in to_analyze:
             if devaddr in to_analyze[elem]:
                 self.to_analyze[elem].remove(devaddr)
+
+    def get_current_section(self):
+        return self.current_section
+
+    def print_metrics(self):
+        number_of_unique_devices = len(self.confirmed)
+        number_of_joins = self.current_section - 1
+        number_of_detected_devices = self.detected
+        percentage_of_detected_devices = number_of_detected_devices / number_of_unique_devices
+
+        print("\n\n======== METRICS FOR THE OPERATOR ========")
+        print("Number of Joins (NoJ): ", number_of_joins)
+        print("Number of Detected Devices (NoDD): ", number_of_detected_devices)
+        print("Number of Unique Devices (NoUD): ", number_of_unique_devices)
+        print("Percentage of Detected Devices (PoDD): ", percentage_of_detected_devices)
+        print("==========================================\n\n")

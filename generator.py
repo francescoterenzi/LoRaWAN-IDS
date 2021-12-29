@@ -18,7 +18,7 @@ Emax = 2           # maximum absolute error in the interarrival time, in seconds
 P = 3              # maximum length of a pattern
 Jmin = 20           # minimum number of messages before a join
 Jmax = 300          # maximum number of messages before a join
-USE_LOED_DISTR = True       # use interarrival time distribution from LoED dataset
+USE_LOED_DISTR = False       # use interarrival time distribution from LoED dataset
 
 if USE_LOED_DISTR:
     # Data for interarrival distribution extracted from LoED dataset

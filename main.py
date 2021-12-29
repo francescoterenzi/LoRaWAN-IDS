@@ -14,7 +14,7 @@ def main():
 
     # generating the dataset
     print("Generating the dataset:")
-    generate_synt_traffic(N, exp_rate)
+    generate_synt_traffic(N)
 
     # loading the dataset
     print("Loading the dataset:")
@@ -27,6 +27,9 @@ def main():
     print("Analyzing the traffic stream:")
     for p in packets:
         pivot.read_packet(p)
+
+ 
+    pivot.print_metrics()
 
 if __name__ == "__main__":
     main()
