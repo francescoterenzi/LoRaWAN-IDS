@@ -94,14 +94,13 @@ class PIVOT:
 
         x = Segment(p_timestamp - timestamp, 0)
         if x.belongs_to(pattern):
-            #self.debug.duplicate(devaddr, suspect)
             self.detected += 1
             self.confirmed[devaddr] = self.unconfirmed[devaddr]
             self.confirmed.pop(suspect)
             self.__clean(suspect)
 
         else:
-            new_pattern = self.unconfirmed[devaddr][suspect]
+            new_pattern = self.unconfirmed[devaddr]
             new_pattern.verified = True
             self.confirmed[devaddr] = new_pattern
 
@@ -131,3 +130,12 @@ class PIVOT:
         print("Number of Unique Devices (NoUD): ", number_of_unique_devices)
         print("Percentage of Detected Devices (PoDD): ", percentage_of_detected_devices)
         print("==========================================\n\n")
+
+    def reset(self):
+        self.confirmed = {}
+        self.unconfirmed = {}
+        self.quarantine = {}
+
+        self.to_analyze = {}
+        self.current_section = 1
+        self.detected = 0

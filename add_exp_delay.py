@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 EXP_RATE = 0.03
-SHOW_PLOTS = True
+SHOW_PLOTS = False
 
 
 def exp_generator(exp_rate):
@@ -63,14 +63,14 @@ def add_exp_delay(packets, exp_rate):
     return packets
 
 
-if __name__ == '__main__':
+def new_exp_traffic(exp_rate):
     # Load packets
     packets = pickle.load(open("synth_traffic.pickle", "rb"))
 
     # Add exp delay
-    packets_delay = add_exp_delay(packets, EXP_RATE)
+    packets_delay = add_exp_delay(packets, exp_rate)
 
     # Save packets
-    pickle.dump(packets_delay, open(f"synth_traffic_delay_{EXP_RATE}.pickle", "wb"))
+    pickle.dump(packets_delay, open(f"synth_traffic_delay_{exp_rate}.pickle", "wb"))
 
 
