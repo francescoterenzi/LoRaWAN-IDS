@@ -19,6 +19,8 @@ def add_exp_delay(packets, exp_rate):
 
     # total delay of all the packets, in seconds
     exp_total_delay = 0
+    # list percentual increases of the delay
+    exp_delay_inc = []
     # number of exponential arrival not used. An exponential arrival is not used
     # if it arrives before the original interarrival time of the packet
     exp_total_notused = 0
@@ -38,6 +40,7 @@ def add_exp_delay(packets, exp_rate):
 
         # modify packet arrival times
         t_exp = packets_dev[0].t
+        prev_t = t_exp
         for p in packets_dev[1:]:
             t_exp += next(exp_gen)
             while p.t > t_exp:
@@ -46,7 +49,10 @@ def add_exp_delay(packets, exp_rate):
                 t_exp += next(exp_gen)
             # update stat
             exp_total_delay += t_exp - p.t
+            assert(p.t - prev_t >= 0)
+            exp_delay_inc.append((t_exp - p.t)/(p.t - prev_t))  #ratio of the delay over the original interarrival time
             # modify packet time
+            prev_t = p.t
             p.t = t_exp
 
         if SHOW_PLOTS:
@@ -56,8 +62,9 @@ def add_exp_delay(packets, exp_rate):
             plt.show()
 
     # print stats
-    print(f"--- Exponential delay stats:")
+    print(f"--- Exponential delay stats, exp_rate={exp_rate}:")
     print(f"---    Average packet delay per packet: {exp_total_delay/len(packets):.2f} (s)")
+    print(f"---    Average percentual increase of packet delay: {sum(exp_delay_inc)/len(exp_delay_inc):.2f}")
     print(f"---    Average exponential arrival not used per packet: {exp_total_notused/len(packets)}")
 
     return packets
@@ -74,3 +81,6 @@ def new_exp_traffic(exp_rate):
     pickle.dump(packets_delay, open(f"synth_traffic_delay_{exp_rate}.pickle", "wb"))
 
 
+if __name__ == "__main__":
+    # debug
+    new_exp_traffic(0.03)
