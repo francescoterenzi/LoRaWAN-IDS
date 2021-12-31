@@ -13,11 +13,11 @@ seed(42)  #reproducible
 class Generator:
 
     S = 50*24*3600     # number of seconds to generate packets
-    Emin = 0.01            # minimum absolute error in the interarrival time, in seconds
-    Emax = 2           # maximum absolute error in the interarrival time, in seconds
-    P = 3              # maximum length of a pattern
-    Jmin = 20           # minimum number of messages before a join
-    Jmax = 300          # maximum number of messages before a join
+    # Emin = 0.01            # minimum absolute error in the interarrival time, in seconds
+    # Emax = 2           # maximum absolute error in the interarrival time, in seconds
+    # P = 3              # maximum length of a pattern
+    # Jmin = 10           # minimum number of messages before a join
+    # Jmax = 300          # maximum number of messages before a join
     USE_LOED_DISTR = False       # use interarrival time distribution from LoED dataset
     Tmin = int(10)           # minimum interarrival time, in seconds
     Tmax = int(12*3600)       # maximum interarrival time, in seconds
@@ -36,8 +36,8 @@ class Generator:
         #        prev_y = y
 
 
-    def new_traffic_flow(self, N):
-        assert(self.P < self.Jmin)
+    def new_traffic_flow(self, N, P, Jmin, Jmax, Emin, Emax):
+        #assert(P < self.Jmin)
 
         cnt_datapckt = 0
         cnt_joins = 0
@@ -45,7 +45,7 @@ class Generator:
         packets_tot = []
         for dev_i in tqdm(range(N)):
             # generate random pattern for the current device
-            pattern_len = randint(1, self.P)
+            pattern_len = randint(1, P)
             if self.USE_LOED_DISTR:
                 pattern = choices(self.pdf_X, self.pdf_Y, k=pattern_len)
             else:
@@ -63,7 +63,7 @@ class Generator:
             t = first_packet_t
             while t < self.S:
                 packets_dev.append(next_packet)
-                t_err = (1.0 if random()>0.5 else -1.0) * (random() * (self.Emax - self.Emin) + self.Emin)
+                t_err = (1.0 if random()>0.5 else -1.0) * (random() * (Emax - Emin) + Emin)
                 # It could be the case that t_err is negative and |t_err| > pattern[i_pattern].
                 # In this case the following assert yields an error
                 next_packet_t = t + pattern[i_pattern] + t_err
@@ -79,7 +79,7 @@ class Generator:
             # add join messages for the current device
             cnt_datapckt += len(packets_dev)
             joins_dev = []
-            i = randint(self.Jmin, self.Jmax)
+            i = randint(Jmin, Jmax)
             while i < len(packets_dev)-1:
                 t1 = packets_dev[i].t
                 t2 = packets_dev[i+1].t
@@ -89,7 +89,7 @@ class Generator:
                 join_packet = Packet(join_msg_t, str(dev_i), "not_available", None, None, -1, "Join Request")
                 joins_dev.append(join_packet)
                 cnt_joins += 1
-                i += randint(self.Jmin, self.Jmax)
+                i += randint(Jmin, Jmax)
 
             # merge packets with joins
             packets_dev += joins_dev

@@ -8,9 +8,10 @@ from scipy.stats import ks_2samp
 
 class Pattern:
 
-    def __init__(self, timestamp):
+    def __init__(self, timestamp, e):
         self.timestamp = timestamp
         self.n = 1
+        self.e = e
         self.verified = False
         self.segments = []
         #self.alpha = 0.001
@@ -27,7 +28,7 @@ class Pattern:
         
         found = False
         for s in self.segments:
-            if abs(s.mean - x) < 4:
+            if abs(s.mean - x) < self.e:
                 found = True
                 s.update(x) 
         

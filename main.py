@@ -1,41 +1,71 @@
+from os import device_encoding
 import pickle
 from pivot import PIVOT
 from generator import Generator
-from add_exp_delay import new_exp_traffic
-from pivot import PIVOT
+from matplotlib import pyplot as plt
+import numpy as np
 
 # global parameters
-N = 150
-exp_rate = 0.1 
+N = 100
+P = 5
+Jmin = 10
+Jmax = 300
+Emin = 0.01
+Emax = 2       
+exp_rate = 0.05
+
+e = 4
 
 def main():
 
     # initializing the generator
     generator = Generator()
 
-    # creating a new dataset
-    print("Generating the dataset:")
-    generator.new_traffic_flow(N)
+    x_axis = []
+    y_axis = []
 
-    # loading the original dataset
-    print("Loading the dataset:")
-    packets =  pickle.load(open("synth_traffic.pickle", "rb"))
+    for N in range(50, 200, 5):
+        # creating a new dataset 
+        print("Generating the dataset:")
+        generator.new_traffic_flow(N, P, Jmin, Jmax, Emin, Emax)
 
-    # new instance of PIVOT
-    pivot = PIVOT()
+        # loading the original dataset
+        print("Loading the dataset:")
+        packets =  pickle.load(open("synth_traffic.pickle", "rb"))
 
-    # PIVOT on listening
-    print("Analyzing the original traffic stream:")
-    for p in packets:
-        pivot.read_packet(p)
+        # new instance of PIVOT
+        pivot = PIVOT(e)
+
+        # PIVOT on listening
+        print("Analyzing the original traffic stream:")
+        for p in packets:
+            pivot.read_packet(p)
+        
+        # printing metrics
+        pivot.print_metrics()
+        debug = pivot.get_debug()
+
+        #print(debug.get_metrics())
+        #print(debug.precision())
+        #print(debug.recall())
+
+        x_axis.append(N)
+        y_axis.append(debug.accuracy())
+
+    fig, ax = plt.subplots()
+    ax.plot(x_axis, y_axis)
+    ax.set(xlabel='Length of P', ylabel='Recall')
+            
+    #fig.savefig("test.png")
+    plt.ylim([0, 1])
+    plt.show()
+
     
-    # printing metrics
-    pivot.print_metrics()
-
+    '''
     # resetting PIVOT
     pivot.reset()
 
-    # new_exp_traffic(exp_rate)
+    new_exp_traffic(exp_rate)
 
     # loading the dealyed dataset
     print("Loading the modified dataset:")
@@ -48,6 +78,8 @@ def main():
  
     # printing metrics
     pivot.print_metrics()
+    pivot.print_debug()
+    '''
 
 if __name__ == "__main__":
     main()
