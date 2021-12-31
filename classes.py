@@ -10,6 +10,6 @@ class Packet:
 		self.info = info
 
 	def __str__(self):
-		return f"time: {self.t} devEUI: {self.dev_eui} devAddr: {self.dev_addr} uid: {self.uid} fcnt: {self.fcnt} info: {self.info}"
+		return f"time: {self.t} devEUI: {self.dev_eui} devAddr: {self.dev_addr} uid: {self.uid} fcnt: {self.fcnt} info: {self.info} mtype: {self.mtype}"
 	def __repr__(self):
 		return self.__str__()
